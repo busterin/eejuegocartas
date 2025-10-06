@@ -45,7 +45,6 @@
   const turnBanner        = $('turnBanner');
   const cardZoom          = $('cardZoom');
   const zoomCard          = $('zoomCard');
-  const orientationOverlay= $('orientationOverlay');
   const playerSlots = Array.from(document.querySelectorAll('.lane-player .slot'));
   const enemySlots  = Array.from(document.querySelectorAll('.lane-enemy .slot'));
 
@@ -57,18 +56,6 @@
     c.id = `c-${Math.random().toString(36).slice(2,8)}`;
     return c;
   };
-
-  // --------- Responsive: aviso orientación ---------
-  const isSmallScreen = () => Math.min(window.innerWidth, window.innerHeight) < 920;
-  const isPortrait = () => window.matchMedia && window.matchMedia("(orientation: portrait)").matches;
-  const updateOrientationOverlay = () => {
-    const show = isSmallScreen() && isPortrait();
-    if (orientationOverlay) orientationOverlay.classList.toggle('hidden', !show);
-  };
-  window.addEventListener('resize', updateOrientationOverlay);
-  if ('onorientationchange' in window) {
-    window.addEventListener('orientationchange', () => setTimeout(updateOrientationOverlay, 50));
-  }
 
   // --------- Robar cartas ---------
   const draw = (owner, n=1, preview=false) => {
@@ -126,7 +113,7 @@
     return el;
   };
 
-  // ===== DRAG & DROP con Pointer Events (sin duplicados) =====
+  // ===== DRAG & DROP con Pointer Events (tap=zoom; arrastre sin duplicados) =====
   const DRAG_THRESHOLD = 6; // px
   let drag = {
     active:false, moved:false,
@@ -144,7 +131,7 @@
     drag.startX = e.clientX; drag.startY = e.clientY;
     drag.startRect = cardEl.getBoundingClientRect();
 
-    // Ghost único (reutilizable para la animación final)
+    // Ghost único
     const g = cardEl.cloneNode(true);
     g.classList.add('fly');
     Object.assign(g.style,{
@@ -155,7 +142,7 @@
     document.body.appendChild(g);
     drag.ghost = g;
 
-    // Oculta la carta original (evita ver “duplicado”)
+    // Oculta original (evita ver duplicado)
     cardEl.style.visibility = 'hidden';
 
     // Resalta slots válidos
@@ -205,7 +192,7 @@
     const dropEl = document.elementFromPoint(e.clientX, e.clientY);
     const slot = dropEl?.closest?.('.lane-player .slot');
 
-    // Si fue tap (sin mover), abrir zoom
+    // TAP sin mover ⇒ ZOOM (en la mano)
     if (!drag.moved) {
       cleanupDrag();
       showCardZoom(drag.card);
@@ -213,7 +200,7 @@
     }
 
     if (slot && state.current === 'player') {
-      // Animar ghost al slot y luego aplicar lógica (sin crear otro ghost)
+      // Animar al slot y jugar
       animateGhostTo(slot, () => {
         const idx = state.player.hand.findIndex(c=>c.id===drag.id);
         if (idx !== -1) {
@@ -236,7 +223,7 @@
       animateGhostBack(() => cleanupDrag());
     }
   };
-  // ===============================================================
+  // ===================================================================
 
   const renderSlots = () => {
     const renderLane = (owner, slotsEls) => {
@@ -245,6 +232,7 @@
         const c = state[owner].slots[i];
         if (c){
           const view = cardHTML(c, {inSlot:true});
+          // Zoom en cartas del tablero:
           view.addEventListener('click', ()=>showCardZoom(c));
           slotEl.appendChild(view);
         }
@@ -258,7 +246,7 @@
     elPlayerHand.innerHTML = '';
     state.player.hand.forEach(c=>{
       const view = cardHTML(c);
-      // Pointer Events para arrastrar (ratón y táctil)
+      // Pointer Events (drag + tap=zoom)
       view.addEventListener('pointerdown', onPointerDownCard(c, view), { passive:false });
       elPlayerHand.appendChild(view);
     });
@@ -338,8 +326,6 @@
     elTimer.textContent = timeFmt(state.timer);
     state.intervalId = setInterval(tick, 1000);
     banner('Turno del Jugador');
-
-    updateOrientationOverlay();
   };
 
   restartBtn.addEventListener('click', start);
