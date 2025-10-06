@@ -45,7 +45,7 @@
   const turnBanner        = $('turnBanner');
   const cardZoom          = $('cardZoom');
   const zoomCard          = $('zoomCard');
-  const rotateOverlay     = $('rotateOverlay');
+  const orientationOverlay= $('orientationOverlay');
   const playerSlots = Array.from(document.querySelectorAll('.lane-player .slot'));
   const enemySlots  = Array.from(document.querySelectorAll('.lane-enemy .slot'));
 
@@ -57,6 +57,18 @@
     c.id = `c-${Math.random().toString(36).slice(2,8)}`;
     return c;
   };
+
+  // --------- Responsive: aviso orientación ---------
+  const isSmallScreen = () => Math.min(window.innerWidth, window.innerHeight) < 920;
+  const isPortrait = () => window.matchMedia && window.matchMedia("(orientation: portrait)").matches;
+  const updateOrientationOverlay = () => {
+    const show = isSmallScreen() && isPortrait();
+    if (orientationOverlay) orientationOverlay.classList.toggle('hidden', !show);
+  };
+  window.addEventListener('resize', updateOrientationOverlay);
+  if ('onorientationchange' in window) {
+    window.addEventListener('orientationchange', () => setTimeout(updateOrientationOverlay, 50));
+  }
 
   // --------- Robar cartas ---------
   const draw = (owner, n=1, preview=false) => {
@@ -92,11 +104,11 @@
     const inner = document.createElement('div');
     inner.className = 'card-inner';
 
+    // Imagen (debajo del título y centrada: el CSS ya lo hace; aquí sólo la insertamos)
     const img = document.createElement('img');
     img.className = 'card-img';
     img.src = card.image;
     img.alt = card.label;
-    inner.appendChild(img);
 
     const title = document.createElement('div');
     title.className = 'title';
@@ -110,20 +122,42 @@
     tag.className = 'tag';
     tag.textContent = card.info;
 
-    inner.append(title, num, tag);
+    // El orden visual lo controla el CSS con posiciones; añadimos todo al inner
+    inner.append(img, title, num, tag);
     el.appendChild(inner);
     return el;
   };
 
-  const asDraggable = el => {
-    el.draggable = true;
-    el.addEventListener('dragstart', e=>{
-      e.dataTransfer.setData('text/plain', el.dataset.cardId);
-      e.dataTransfer.setDragImage(el, el.offsetWidth/2, el.offsetHeight/2);
-      playerSlots.forEach(s=>s.classList.add('own-target'));
-    });
-    el.addEventListener('dragend', ()=>{
-      playerSlots.forEach(s=>s.classList.remove('own-target'));
+  // --- FIX drag & drop robusto (arrastra aunque empieces sobre hijos) ---
+  const onCardDragStart = (e) => {
+    const cardEl = e.target.closest('.card');
+    if (!cardEl) return;
+    const id = cardEl.dataset.cardId;
+    if (!id) return;
+
+    e.dataTransfer.setData('text/plain', id);
+    // Imagen de arrastre: usar el propio elemento de carta
+    e.dataTransfer.setDragImage(cardEl, cardEl.offsetWidth/2, cardEl.offsetHeight/2);
+
+    // Marcar slots válidos
+    playerSlots.forEach(s=>s.classList.add('own-target'));
+  };
+
+  const onCardDragEnd = () => {
+    playerSlots.forEach(s=>s.classList.remove('own-target'));
+  };
+
+  const asDraggable = (cardEl) => {
+    // Hacer draggable la carta y también sus principales hijos
+    cardEl.draggable = true;
+    cardEl.addEventListener('dragstart', onCardDragStart);
+    cardEl.addEventListener('dragend', onCardDragEnd);
+
+    const children = cardEl.querySelectorAll('.card-inner, .title, .number, .tag, .card-img');
+    children.forEach(ch => {
+      ch.draggable = true;
+      ch.addEventListener('dragstart', onCardDragStart);
+      ch.addEventListener('dragend', onCardDragEnd);
     });
   };
 
@@ -135,6 +169,7 @@
         if (c){
           const view = cardHTML(c, {inSlot:true});
           view.addEventListener('click', ()=>showCardZoom(c));
+          // No hacemos draggable las cartas ya colocadas
           slotEl.appendChild(view);
         }
       });
@@ -156,7 +191,7 @@
   // --------- Zoom ----------
   const showCardZoom = (card) => {
     zoomCard.innerHTML = `
-      <div class="title" style="font-weight:800">${card.label}</div>
+      <div class="title">${card.label}</div>
       <img src="${card.image}" alt="${card.label}">
       <div class="number">-${card.value}</div>
       <div class="tag" style="text-align:center;opacity:.95;margin-top:auto;">${card.info}</div>
@@ -253,16 +288,6 @@
     });
   };
 
-  // --------- Orientación (mostrar/ocultar aviso) ---------
-  const shouldShowRotate = () => {
-    const portrait = window.matchMedia("(orientation: portrait)").matches || window.innerHeight > window.innerWidth;
-    const smallScreen = Math.min(window.innerWidth, window.innerHeight) < 900; // enfoque móvil/tablet
-    return portrait && smallScreen;
-  };
-  const updateRotateOverlay = () => {
-    rotateOverlay.classList.toggle('hidden', !shouldShowRotate());
-  };
-
   // --------- Inicio ---------
   const start = () => {
     Object.assign(state.player,{pollution:START_POLLUTION,hand:[],slots:Array(SLOTS).fill(null)});
@@ -277,12 +302,8 @@
     state.intervalId = setInterval(tick, 1000);
     banner('Turno del Jugador');
 
-    updateRotateOverlay();
+    updateOrientationOverlay();
   };
-
-  // Eventos de orientación/resize
-  window.addEventListener('resize', updateRotateOverlay);
-  window.addEventListener('orientationchange', updateRotateOverlay);
 
   restartBtn.addEventListener('click', start);
   setupDnD();
