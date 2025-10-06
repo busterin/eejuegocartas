@@ -104,7 +104,7 @@
     const inner = document.createElement('div');
     inner.className = 'card-inner';
 
-    // Imagen (debajo del título y centrada: el CSS ya lo hace; aquí sólo la insertamos)
+    // Orden: imagen (debajo del título visualmente), título, número, tag.
     const img = document.createElement('img');
     img.className = 'card-img';
     img.src = card.image;
@@ -122,44 +122,105 @@
     tag.className = 'tag';
     tag.textContent = card.info;
 
-    // El orden visual lo controla el CSS con posiciones; añadimos todo al inner
     inner.append(img, title, num, tag);
     el.appendChild(inner);
     return el;
   };
 
-  // --- FIX drag & drop robusto (arrastra aunque empieces sobre hijos) ---
-  const onCardDragStart = (e) => {
-    const cardEl = e.target.closest('.card');
-    if (!cardEl) return;
-    const id = cardEl.dataset.cardId;
-    if (!id) return;
-
-    e.dataTransfer.setData('text/plain', id);
-    // Imagen de arrastre: usar el propio elemento de carta
-    e.dataTransfer.setDragImage(cardEl, cardEl.offsetWidth/2, cardEl.offsetHeight/2);
-
-    // Marcar slots válidos
-    playerSlots.forEach(s=>s.classList.add('own-target'));
+  // ============= DRAG & DROP UNIFICADO (Pointer Events) =============
+  const DRAG_THRESHOLD = 6; // px para distinguir click de arrastre
+  let drag = {
+    active:false, moved:false,
+    id:null, card:null, startX:0, startY:0,
+    ghost:null, originEl:null
   };
 
-  const onCardDragEnd = () => {
-    playerSlots.forEach(s=>s.classList.remove('own-target'));
-  };
+  const onPointerDownCard = (cardObj, cardEl) => (e) => {
+    if (state.current !== 'player') return;
+    // Evitar scroll en táctil y seleccionar texto
+    e.preventDefault();
 
-  const asDraggable = (cardEl) => {
-    // Hacer draggable la carta y también sus principales hijos
-    cardEl.draggable = true;
-    cardEl.addEventListener('dragstart', onCardDragStart);
-    cardEl.addEventListener('dragend', onCardDragEnd);
+    drag.active = true; drag.moved = false;
+    drag.id = cardObj.id; drag.card = cardObj; drag.originEl = cardEl;
+    drag.startX = e.clientX; drag.startY = e.clientY;
 
-    const children = cardEl.querySelectorAll('.card-inner, .title, .number, .tag, .card-img');
-    children.forEach(ch => {
-      ch.draggable = true;
-      ch.addEventListener('dragstart', onCardDragStart);
-      ch.addEventListener('dragend', onCardDragEnd);
+    // Ghost visual
+    const rect = cardEl.getBoundingClientRect();
+    const g = cardEl.cloneNode(true);
+    g.classList.add('fly'); // ya tiene estilo en CSS
+    Object.assign(g.style,{
+      left:`${rect.left}px`, top:`${rect.top}px`,
+      width:`${rect.width}px`, height:`${rect.height}px`,
+      transform:`translate(0,0)`, opacity:'0.95', zIndex: 1000,
+      pointerEvents:'none'
     });
+    document.body.appendChild(g);
+    drag.ghost = g;
+
+    // Resaltar slots
+    playerSlots.forEach(s=>s.classList.add('own-target'));
+
+    // Captura de puntero
+    e.target.setPointerCapture?.(e.pointerId);
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp, { once:true });
   };
+
+  const onPointerMove = (e) => {
+    if (!drag.active || !drag.ghost) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+
+    if (!drag.moved && Math.hypot(dx,dy) > DRAG_THRESHOLD) drag.moved = true;
+
+    drag.ghost.style.transform = `translate(${dx}px, ${dy}px)`;
+
+    // Opcional: podríamos marcar el slot bajo el puntero
+    // (lo omitimos para no saturar; el destello ya confirma al soltar)
+  };
+
+  const onPointerUp = (e) => {
+    if (!drag.active) return;
+    // Quitar resaltado slots
+    playerSlots.forEach(s=>s.classList.remove('own-target'));
+
+    // Detectar slot bajo el puntero
+    const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+    const slot = dropEl?.closest?.('.lane-player .slot');
+
+    // Limpiar ghost
+    drag.ghost?.remove();
+
+    // Si fue "tap" (sin mover), entonces tratamos como click -> zoom
+    if (!drag.moved) {
+      showCardZoom(drag.card);
+      resetDrag();
+      return;
+    }
+
+    // Si soltamos sobre un slot válido, jugar
+    if (slot && state.current === 'player') {
+      const idx = state.player.hand.findIndex(c=>c.id===drag.id);
+      if (idx !== -1) {
+        const card = state.player.hand.splice(idx,1)[0];
+        playIntoPlayerSlot(slot, card);
+        resetDrag();
+        return;
+      }
+    }
+
+    // Si no fue válido, animación de retorno suave
+    resetDrag();
+  };
+
+  const resetDrag = () => {
+    drag.active = false; drag.moved = false;
+    drag.id = null; drag.card = null; drag.originEl = null;
+    if (drag.ghost) { try{ drag.ghost.remove(); }catch{} }
+    drag.ghost = null;
+    window.removeEventListener('pointermove', onPointerMove);
+  };
+  // ==================================================================
 
   const renderSlots = () => {
     const renderLane = (owner, slotsEls) => {
@@ -169,7 +230,6 @@
         if (c){
           const view = cardHTML(c, {inSlot:true});
           view.addEventListener('click', ()=>showCardZoom(c));
-          // No hacemos draggable las cartas ya colocadas
           slotEl.appendChild(view);
         }
       });
@@ -182,8 +242,9 @@
     elPlayerHand.innerHTML = '';
     state.player.hand.forEach(c=>{
       const view = cardHTML(c);
-      view.addEventListener('click', ()=>showCardZoom(c));
-      asDraggable(view);
+      // Pointer Events para arrastrar (funciona en ratón y táctil)
+      view.addEventListener('pointerdown', onPointerDownCard(c, view), { passive:false });
+      // Click (por si se quiere ver zoom sin arrastrar): ya lo cubrimos en pointerup si no se movió
       elPlayerHand.appendChild(view);
     });
   };
@@ -211,6 +272,7 @@
     updatePollutionUI(); pulse(who);
   };
 
+  // (Mantenemos la animación de "vuelo" al colocar desde la mano)
   const flyFromHandTo = (slotEl, cardId) => {
     const src = elPlayerHand.querySelector(`[data-card-id="${cardId}"]`);
     if (!src) return;
@@ -272,22 +334,6 @@
     if (state.timer<=0){ clearInterval(state.intervalId); decideByTime(); }
   };
 
-  // --------- DnD ---------
-  const setupDnD = () => {
-    playerSlots.forEach(slot=>{
-      slot.addEventListener('dragover', e=>{ if(state.current==='player') e.preventDefault(); });
-      slot.addEventListener('drop', e=>{
-        if(state.current!=='player') return;
-        e.preventDefault();
-        const id = e.dataTransfer.getData('text/plain');
-        const i = state.player.hand.findIndex(c=>c.id===id);
-        if (i===-1) return;
-        const card = state.player.hand.splice(i,1)[0];
-        playIntoPlayerSlot(slot, card);
-      });
-    });
-  };
-
   // --------- Inicio ---------
   const start = () => {
     Object.assign(state.player,{pollution:START_POLLUTION,hand:[],slots:Array(SLOTS).fill(null)});
@@ -306,6 +352,5 @@
   };
 
   restartBtn.addEventListener('click', start);
-  setupDnD();
   start();
 })();
