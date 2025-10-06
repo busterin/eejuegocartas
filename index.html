@@ -1,1 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Prototipo — Juego de Cartas Medioambiental</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Barra superior: Jugador / Temporizador / Rival -->
+  <header class="topbar">
+    <div class="side side-left">
+      <span class="name">Jugador</span>
+      <div class="pollution">
+        <span id="playerPollution">50</span>
+      </div>
+    </div>
 
+    <div class="timer-wrap">
+      <div class="timer-label">Tiempo</div>
+      <div id="timer">05:00</div>
+      <div class="rule">Gana quien llegue a 0. Si se acaba el tiempo, gana el de menor contaminación.</div>
+    </div>
+
+    <div class="side side-right">
+      <span class="name">Rival</span>
+      <div class="pollution">
+        <span id="enemyPollution">50</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Tapete -->
+  <main class="board">
+    <!-- Fila Rival -->
+    <section class="lane lane-enemy" aria-label="Zona del rival">
+      <div class="slot" data-owner="enemy"></div>
+      <div class="slot" data-owner="enemy"></div>
+      <div class="slot" data-owner="enemy"></div>
+      <div class="slot" data-owner="enemy"></div>
+      <div class="slot" data-owner="enemy"></div>
+    </section>
+
+    <!-- Fila Jugador -->
+    <section class="lane lane-player" aria-label="Zona del jugador">
+      <div class="slot" data-owner="player"></div>
+      <div class="slot" data-owner="player"></div>
+      <div class="slot" data-owner="player"></div>
+      <div class="slot" data-owner="player"></div>
+      <div class="slot" data-owner="player"></div>
+    </section>
+  </main>
+
+  <!-- Mano del jugador -->
+  <footer class="hand-wrap">
+    <h2 class="hand-title">Tu mano</h2>
+    <div id="playerHand" class="hand" aria-label="Mano del jugador"></div>
+    <div class="turn-indicator">
+      Turno: <span id="turnLabel">Jugador</span>
+    </div>
+  </footer>
+
+  <!-- Overlay de fin de partida -->
+  <div id="overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="overlayTitle">
+    <div class="overlay-card">
+      <h2 id="overlayTitle"></h2>
+      <p id="overlaySubtitle"></p>
+      <button id="restartBtn" class="btn">Volver al inicio</button>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
