@@ -104,7 +104,6 @@
     const inner = document.createElement('div');
     inner.className = 'card-inner';
 
-    // Orden: imagen (debajo del título visualmente), título, número, tag.
     const img = document.createElement('img');
     img.className = 'card-img';
     img.src = card.image;
@@ -127,40 +126,41 @@
     return el;
   };
 
-  // ============= DRAG & DROP UNIFICADO (Pointer Events) =============
-  const DRAG_THRESHOLD = 6; // px para distinguir click de arrastre
+  // ===== DRAG & DROP con Pointer Events (sin duplicados) =====
+  const DRAG_THRESHOLD = 6; // px
   let drag = {
     active:false, moved:false,
-    id:null, card:null, startX:0, startY:0,
-    ghost:null, originEl:null
+    id:null, card:null, originEl:null,
+    startX:0, startY:0, startRect:null,
+    ghost:null
   };
 
   const onPointerDownCard = (cardObj, cardEl) => (e) => {
     if (state.current !== 'player') return;
-    // Evitar scroll en táctil y seleccionar texto
     e.preventDefault();
 
     drag.active = true; drag.moved = false;
     drag.id = cardObj.id; drag.card = cardObj; drag.originEl = cardEl;
     drag.startX = e.clientX; drag.startY = e.clientY;
+    drag.startRect = cardEl.getBoundingClientRect();
 
-    // Ghost visual
-    const rect = cardEl.getBoundingClientRect();
+    // Ghost único (reutilizable para la animación final)
     const g = cardEl.cloneNode(true);
-    g.classList.add('fly'); // ya tiene estilo en CSS
+    g.classList.add('fly');
     Object.assign(g.style,{
-      left:`${rect.left}px`, top:`${rect.top}px`,
-      width:`${rect.width}px`, height:`${rect.height}px`,
-      transform:`translate(0,0)`, opacity:'0.95', zIndex: 1000,
-      pointerEvents:'none'
+      left:`${drag.startRect.left}px`, top:`${drag.startRect.top}px`,
+      width:`${drag.startRect.width}px`, height:`${drag.startRect.height}px`,
+      transform:`translate(0,0)`, opacity:'0.95', transition:'none'
     });
     document.body.appendChild(g);
     drag.ghost = g;
 
-    // Resaltar slots
+    // Oculta la carta original (evita ver “duplicado”)
+    cardEl.style.visibility = 'hidden';
+
+    // Resalta slots válidos
     playerSlots.forEach(s=>s.classList.add('own-target'));
 
-    // Captura de puntero
     e.target.setPointerCapture?.(e.pointerId);
     window.addEventListener('pointermove', onPointerMove);
     window.addEventListener('pointerup', onPointerUp, { once:true });
@@ -170,57 +170,73 @@
     if (!drag.active || !drag.ghost) return;
     const dx = e.clientX - drag.startX;
     const dy = e.clientY - drag.startY;
-
     if (!drag.moved && Math.hypot(dx,dy) > DRAG_THRESHOLD) drag.moved = true;
-
     drag.ghost.style.transform = `translate(${dx}px, ${dy}px)`;
+  };
 
-    // Opcional: podríamos marcar el slot bajo el puntero
-    // (lo omitimos para no saturar; el destello ya confirma al soltar)
+  const animateGhostTo = (slotEl, onEnd) => {
+    const b = slotEl.getBoundingClientRect();
+    const dxF = b.left - drag.startRect.left + (b.width - drag.startRect.width)/2;
+    const dyF = b.top  - drag.startRect.top  + (b.height - drag.startRect.height)/2;
+    drag.ghost.style.transition = 'transform 220ms ease, opacity 220ms ease';
+    drag.ghost.style.transform  = `translate(${dxF}px, ${dyF}px)`;
+    drag.ghost.style.opacity    = '0.2';
+    setTimeout(onEnd, 230);
+  };
+
+  const animateGhostBack = (onEnd) => {
+    drag.ghost.style.transition = 'transform 180ms ease, opacity 180ms ease';
+    drag.ghost.style.transform  = 'translate(0,0)';
+    drag.ghost.style.opacity    = '1';
+    setTimeout(onEnd, 190);
+  };
+
+  const cleanupDrag = () => {
+    if (drag.originEl) drag.originEl.style.visibility = '';
+    if (drag.ghost) { try{ drag.ghost.remove(); }catch{} }
+    playerSlots.forEach(s=>s.classList.remove('own-target'));
+    window.removeEventListener('pointermove', onPointerMove);
+    drag = { active:false, moved:false, id:null, card:null, originEl:null, startX:0, startY:0, startRect:null, ghost:null };
   };
 
   const onPointerUp = (e) => {
     if (!drag.active) return;
-    // Quitar resaltado slots
-    playerSlots.forEach(s=>s.classList.remove('own-target'));
 
-    // Detectar slot bajo el puntero
     const dropEl = document.elementFromPoint(e.clientX, e.clientY);
     const slot = dropEl?.closest?.('.lane-player .slot');
 
-    // Limpiar ghost
-    drag.ghost?.remove();
-
-    // Si fue "tap" (sin mover), entonces tratamos como click -> zoom
+    // Si fue tap (sin mover), abrir zoom
     if (!drag.moved) {
+      cleanupDrag();
       showCardZoom(drag.card);
-      resetDrag();
       return;
     }
 
-    // Si soltamos sobre un slot válido, jugar
     if (slot && state.current === 'player') {
-      const idx = state.player.hand.findIndex(c=>c.id===drag.id);
-      if (idx !== -1) {
-        const card = state.player.hand.splice(idx,1)[0];
-        playIntoPlayerSlot(slot, card);
-        resetDrag();
-        return;
-      }
+      // Animar ghost al slot y luego aplicar lógica (sin crear otro ghost)
+      animateGhostTo(slot, () => {
+        const idx = state.player.hand.findIndex(c=>c.id===drag.id);
+        if (idx !== -1) {
+          const card = state.player.hand.splice(idx,1)[0];
+          const slotIdx = Number(slot.dataset.idx);
+          state.player.slots[slotIdx] = card;
+          renderSlots();
+          flashSlot(slot);
+          applyEffect('player', card);
+          if (state.player.pollution === 0) { cleanupDrag(); endGame('win','¡Llegaste a 0 de contaminación!'); return; }
+          refreshHandUI();
+          cleanupDrag();
+          nextTurn();
+        } else {
+          cleanupDrag();
+        }
+      });
+    } else {
+      // Volver a origen
+      animateGhostBack(() => cleanupDrag());
     }
-
-    // Si no fue válido, animación de retorno suave
-    resetDrag();
   };
-
-  const resetDrag = () => {
-    drag.active = false; drag.moved = false;
-    drag.id = null; drag.card = null; drag.originEl = null;
-    if (drag.ghost) { try{ drag.ghost.remove(); }catch{} }
-    drag.ghost = null;
-    window.removeEventListener('pointermove', onPointerMove);
-  };
-  // ==================================================================
+  // ===============================================================
 
   const renderSlots = () => {
     const renderLane = (owner, slotsEls) => {
@@ -242,9 +258,8 @@
     elPlayerHand.innerHTML = '';
     state.player.hand.forEach(c=>{
       const view = cardHTML(c);
-      // Pointer Events para arrastrar (funciona en ratón y táctil)
+      // Pointer Events para arrastrar (ratón y táctil)
       view.addEventListener('pointerdown', onPointerDownCard(c, view), { passive:false });
-      // Click (por si se quiere ver zoom sin arrastrar): ya lo cubrimos en pointerup si no se movió
       elPlayerHand.appendChild(view);
     });
   };
@@ -270,30 +285,6 @@
   const applyEffect = (who, card) => {
     state[who].pollution = Math.max(0, state[who].pollution - card.value);
     updatePollutionUI(); pulse(who);
-  };
-
-  // (Mantenemos la animación de "vuelo" al colocar desde la mano)
-  const flyFromHandTo = (slotEl, cardId) => {
-    const src = elPlayerHand.querySelector(`[data-card-id="${cardId}"]`);
-    if (!src) return;
-    const a = src.getBoundingClientRect(), b = slotEl.getBoundingClientRect();
-    const ghost = src.cloneNode(true); ghost.classList.add('fly'); document.body.appendChild(ghost);
-    Object.assign(ghost.style,{left:`${a.left}px`,top:`${a.top}px`,width:`${a.width}px`,height:`${a.height}px`,transform:`translate(0,0)`,opacity:'0.95' });
-    requestAnimationFrame(()=>{
-      const dx=b.left-a.left+(b.width-a.width)/2, dy=b.top-a.top+(b.height-a.height)/2;
-      ghost.style.transform=`translate(${dx}px,${dy}px) scale(0.9)`; ghost.style.opacity='0.15';
-      setTimeout(()=>ghost.remove(),230);
-    });
-  };
-
-  const playIntoPlayerSlot = (slotEl, card) => {
-    const idx = Number(slotEl.dataset.idx);
-    flyFromHandTo(slotEl, card.id);
-    state.player.slots[idx] = card; flashSlot(slotEl); renderSlots();
-    applyEffect('player', card);
-    if (state.player.pollution === 0) return endGame('win','¡Llegaste a 0 de contaminación!');
-    refreshHandUI();
-    nextTurn();
   };
 
   // --------- Turnos ---------
