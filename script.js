@@ -45,6 +45,7 @@
   const turnBanner        = $('turnBanner');
   const cardZoom          = $('cardZoom');
   const zoomCard          = $('zoomCard');
+  const rotateOverlay     = $('rotateOverlay');
   const playerSlots = Array.from(document.querySelectorAll('.lane-player .slot'));
   const enemySlots  = Array.from(document.querySelectorAll('.lane-enemy .slot'));
 
@@ -59,10 +60,7 @@
 
   // --------- Robar cartas ---------
   const draw = (owner, n=1, preview=false) => {
-    for (let i=0;i<n;i++) {
-      const card = randFromDeck();
-      state[owner].hand.push(card);
-    }
+    for (let i=0;i<n;i++) state[owner].hand.push(randFromDeck());
     if (owner==='player' && preview && state.player.hand.length){
       showCardZoom(state.player.hand[state.player.hand.length-1]);
       setTimeout(hideCardZoom, 1100);
@@ -160,9 +158,9 @@
     zoomCard.innerHTML = `
       <div class="title" style="font-weight:800">${card.label}</div>
       <img src="${card.image}" alt="${card.label}">
-      <div class="number" style="font-size:4rem;text-align:center;font-weight:900;">-${card.value}</div>
-      <div style="text-align:center;opacity:.95;margin-bottom:8px">${card.info}</div>
-      <div style="display:flex;gap:8px;justify-content:center;">
+      <div class="number">-${card.value}</div>
+      <div class="tag" style="text-align:center;opacity:.95;margin-top:auto;">${card.info}</div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;">
         <button class="btn" id="zoomClose">Cerrar</button>
       </div>`;
     cardZoom.classList.remove('hidden');
@@ -183,7 +181,7 @@
     if (!src) return;
     const a = src.getBoundingClientRect(), b = slotEl.getBoundingClientRect();
     const ghost = src.cloneNode(true); ghost.classList.add('fly'); document.body.appendChild(ghost);
-    Object.assign(ghost.style,{left:`${a.left}px`,top:`${a.top}px`,width:`${a.width}px`,height:`${a.height}px`,transform:`translate(0,0)`,opacity:'0.95'});
+    Object.assign(ghost.style,{left:`${a.left}px`,top:`${a.top}px`,width:`${a.width}px`,height:`${a.height}px`,transform:`translate(0,0)`,opacity:'0.95' });
     requestAnimationFrame(()=>{
       const dx=b.left-a.left+(b.width-a.width)/2, dy=b.top-a.top+(b.height-a.height)/2;
       ghost.style.transform=`translate(${dx}px,${dy}px) scale(0.9)`; ghost.style.opacity='0.15';
@@ -255,19 +253,36 @@
     });
   };
 
+  // --------- Orientación (mostrar/ocultar aviso) ---------
+  const shouldShowRotate = () => {
+    const portrait = window.matchMedia("(orientation: portrait)").matches || window.innerHeight > window.innerWidth;
+    const smallScreen = Math.min(window.innerWidth, window.innerHeight) < 900; // enfoque móvil/tablet
+    return portrait && smallScreen;
+  };
+  const updateRotateOverlay = () => {
+    rotateOverlay.classList.toggle('hidden', !shouldShowRotate());
+  };
+
   // --------- Inicio ---------
   const start = () => {
     Object.assign(state.player,{pollution:START_POLLUTION,hand:[],slots:Array(SLOTS).fill(null)});
     Object.assign(state.enemy ,{pollution:START_POLLUTION,hand:[],slots:Array(SLOTS).fill(null)});
     state.current='player'; state.timer=MATCH_TIME;
     clearInterval(state.intervalId); overlay.classList.add('hidden');
+
     updatePollutionUI(); renderSlots(); refreshHandUI();
     draw('player', START_HAND_SIZE, true);
     draw('enemy',  START_HAND_SIZE, false);
     elTimer.textContent = timeFmt(state.timer);
     state.intervalId = setInterval(tick, 1000);
     banner('Turno del Jugador');
+
+    updateRotateOverlay();
   };
+
+  // Eventos de orientación/resize
+  window.addEventListener('resize', updateRotateOverlay);
+  window.addEventListener('orientationchange', updateRotateOverlay);
 
   restartBtn.addEventListener('click', start);
   setupDnD();
