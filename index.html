@@ -2,16 +2,19 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Prototipo — Juego de Cartas Medioambiental</title>
+  <title>Prototipo — Cartas Medioambientales</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <!-- Barra superior: Jugador / Temporizador / Rival -->
+  <!-- Cartel de turno -->
+  <div id="turnBanner" class="turn-banner hidden">Turno</div>
+
+  <!-- Barra superior -->
   <header class="topbar">
     <div class="side side-left">
       <span class="name">Jugador</span>
-      <div class="pollution">
+      <div class="pollution" id="playerBubble">
         <span id="playerPollution">50</span>
       </div>
     </div>
@@ -24,7 +27,7 @@
 
     <div class="side side-right">
       <span class="name">Rival</span>
-      <div class="pollution">
+      <div class="pollution" id="enemyBubble">
         <span id="enemyPollution">50</span>
       </div>
     </div>
@@ -33,21 +36,21 @@
   <!-- Tapete -->
   <main class="board">
     <!-- Fila Rival -->
-    <section class="lane lane-enemy" aria-label="Zona del rival">
-      <div class="slot" data-owner="enemy"></div>
-      <div class="slot" data-owner="enemy"></div>
-      <div class="slot" data-owner="enemy"></div>
-      <div class="slot" data-owner="enemy"></div>
-      <div class="slot" data-owner="enemy"></div>
+    <section class="lane lane-enemy" aria-label="Zona del rival" id="enemyLane">
+      <div class="slot" data-owner="enemy" data-idx="0"></div>
+      <div class="slot" data-owner="enemy" data-idx="1"></div>
+      <div class="slot" data-owner="enemy" data-idx="2"></div>
+      <div class="slot" data-owner="enemy" data-idx="3"></div>
+      <div class="slot" data-owner="enemy" data-idx="4"></div>
     </section>
 
     <!-- Fila Jugador -->
-    <section class="lane lane-player" aria-label="Zona del jugador">
-      <div class="slot" data-owner="player"></div>
-      <div class="slot" data-owner="player"></div>
-      <div class="slot" data-owner="player"></div>
-      <div class="slot" data-owner="player"></div>
-      <div class="slot" data-owner="player"></div>
+    <section class="lane lane-player" aria-label="Zona del jugador" id="playerLane">
+      <div class="slot" data-owner="player" data-idx="0"></div>
+      <div class="slot" data-owner="player" data-idx="1"></div>
+      <div class="slot" data-owner="player" data-idx="2"></div>
+      <div class="slot" data-owner="player" data-idx="3"></div>
+      <div class="slot" data-owner="player" data-idx="4"></div>
     </section>
   </main>
 
@@ -66,6 +69,13 @@
       <h2 id="overlayTitle"></h2>
       <p id="overlaySubtitle"></p>
       <button id="restartBtn" class="btn">Volver al inicio</button>
+    </div>
+  </div>
+
+  <!-- Zoom / Vista de carta -->
+  <div id="cardZoom" class="zoom hidden" role="dialog" aria-modal="true" aria-labelledby="zoomTitle">
+    <div class="zoom-card" id="zoomCard">
+      <!-- contenido se inyecta por JS -->
     </div>
   </div>
 
