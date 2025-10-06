@@ -18,9 +18,13 @@
   --radius: 14px;
 }
 
-/* --- layout general --- */
+/* ===== Pantalla fija y sin rebotes ===== */
 *{box-sizing:border-box}
-html,body{height:100%}
+html,body{
+  height:100dvh; /* viewport real en móviles */
+  overflow:hidden;             /* sin scroll */
+  overscroll-behavior: none;   /* sin “rebote” */
+}
 body{
   margin:0;
   font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
@@ -29,6 +33,12 @@ body{
     radial-gradient(1200px 600px at 50% -200px, #1d4d33 0%, transparent 60%),
     linear-gradient(180deg, var(--bg), #0b1410 60%, #080f0b);
 }
+
+/* Bloquea gestos de desplazamiento/zoom en el área del juego */
+.board, .lane, .slot, .hand, .card, .zoom{
+  touch-action:none;
+}
+img{ -webkit-user-drag:none; user-select:none; -webkit-user-select:none }
 
 /* Aviso orientación (para móviles en vertical) */
 .orient-overlay{
@@ -158,15 +168,15 @@ body{
   width:100%;height:100%;
 }
 
-/* imagen dentro de carta */
+/* imagen dentro de carta (centrada) */
 .card-img{
   position:absolute;
   inset: clamp(8px, 1.2vw, 10px);
   width:auto;height:auto;
   max-width: calc(100% - clamp(16px, 2.4vw, 20px));
   max-height: calc(100% - clamp(16px, 2.4vw, 20px));
-  object-fit: contain;             /* centrada y completa */
-  object-position: center center;  /* centrada en todos los casos */
+  object-fit: contain;
+  object-position: center center;
   border-radius:8px;
   z-index:1;
   pointer-events:none;
@@ -177,7 +187,7 @@ body{
   content:""; position:absolute; inset:0; z-index:1;
   border-radius:var(--radius);
   background:linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.35));
-  pointer-events:none; /* no bloquea arrastre */
+  pointer-events:none;
 }
 
 /* textos por encima */
@@ -190,7 +200,7 @@ body{
   text-align:center;
 }
 
-/* Número en esquina superior derecha */
+/* Número arriba a la derecha */
 .card .number{
   position:absolute;
   top: clamp(6px, 1.2vw, 10px);
@@ -222,14 +232,20 @@ body{
 @keyframes dropBounce{ 0%{transform:scale(.9)} 55%{transform:scale(1.02)} 100%{transform:scale(1)} }
 .card.in-slot .number{ font-size: clamp(1rem, 2.4vw, 1.6rem) }
 
-/* clon animado */
-.card.fly{ position:fixed; pointer-events:none; transition:transform 220ms ease, opacity 220ms ease; z-index:15 }
+/* clon / ghost mientras arrastras */
+.card.fly{
+  position:fixed;
+  pointer-events:none;
+  z-index:1000;
+  will-change: transform;
+  transition: none; /* sin transición durante el arrastre; se activa al soltar */
+}
 
 /* mano */
 .hand-wrap{max-width:min(1100px, 98vw); margin:0 auto clamp(14px, 3vh, 28px); padding: 0 clamp(10px, 2.6vw, 24px)}
 .hand-title{margin: 6px 0; font-size: clamp(.9rem, 2vw, 1rem); opacity:.85}
 .hand{display:flex;flex-wrap:wrap;gap: clamp(8px, 1.6vw, 12px); min-height: calc(var(--card-h) + 16px)}
-.turn-indicator{margin-top:6px; opacity:.85; font-size: clamp(.9rem, 2vw, 1rem)}
+.turn-indicator{margin-top:6px;opacity:.85; font-size: clamp(.9rem, 2vw, 1rem)}
 
 /* overlay final */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;z-index:30}
