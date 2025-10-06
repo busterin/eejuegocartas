@@ -1,13 +1,26 @@
 (() => {
-  // ---- Config ----
+  // --------- Configuración ----------
   const START_POLLUTION = 50;
   const TURN_DRAW = 1;
   const START_HAND_SIZE = 5;
-  const MATCH_TIME = 5 * 60;
-  const CARD_MIN = 2, CARD_MAX = 9;
+  const MATCH_TIME = 5 * 60; // 5 minutos
   const SLOTS = 5;
 
-  // ---- Estado ----
+  // --------- Mazo base con imágenes ---------
+  const baseDeck = [
+    { label: "Acción Verde", info: "Reduce la contaminación", value: 2, image: "assets/Carta1.png" },
+    { label: "Reciclaje", info: "Recoge residuos y reduce el impacto", value: 3, image: "assets/Carta2.png" },
+    { label: "Energía Solar", info: "Paneles solares instalados", value: 4, image: "assets/Carta3.png" },
+    { label: "Reforestación", info: "Plantas nuevos bosques", value: 5, image: "assets/Carta4.png" },
+    { label: "Transporte Limpio", info: "Usa movilidad eléctrica", value: 6, image: "assets/Carta5.png" },
+    { label: "Agua Pura", info: "Purificación y control de vertidos", value: 3, image: "assets/Carta6.png" },
+    { label: "Protección Animal", info: "Cuidado de la fauna silvestre", value: 4, image: "assets/Carta7.png" },
+    { label: "Agricultura Sostenible", info: "Reduce pesticidas", value: 5, image: "assets/Carta8.png" },
+    { label: "Educación Ambiental", info: "Campañas de concienciación", value: 2, image: "assets/Carta9.png" },
+    { label: "Energía Eólica", info: "Molinos de viento eficientes", value: 6, image: "assets/Carta10.png" },
+  ];
+
+  // --------- Estado ----------
   const state = {
     player: { pollution: START_POLLUTION, hand: [], slots: Array(SLOTS).fill(null) },
     enemy:  { pollution: START_POLLUTION, hand: [], slots: Array(SLOTS).fill(null) },
@@ -16,7 +29,7 @@
     intervalId: null
   };
 
-  // ---- DOM ----
+  // --------- DOM ----------
   const $ = id => document.getElementById(id);
   const elPlayerPollution = $('playerPollution');
   const elEnemyPollution  = $('enemyPollution');
@@ -35,23 +48,20 @@
   const playerSlots = Array.from(document.querySelectorAll('.lane-player .slot'));
   const enemySlots  = Array.from(document.querySelectorAll('.lane-enemy .slot'));
 
-  // ---- Utils ----
+  // --------- Utilidades ----------
   const randInt = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
   const timeFmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const randFromDeck = () => {
+    const c = structuredClone(baseDeck[randInt(0, baseDeck.length-1)]);
+    c.id = `c-${Math.random().toString(36).slice(2,8)}`;
+    return c;
+  };
 
-  const makeCard = (owner, image=null) => ({
-    id: `${owner}-${Math.random().toString(36).slice(2,8)}`,
-    value: randInt(CARD_MIN, CARD_MAX),
-    label: "Acción Verde",
-    info: "Reduce tu contaminación",
-    image
-  });
-
+  // --------- Robar cartas ---------
   const draw = (owner, n=1, preview=false) => {
-    for (let i=0;i<n;i++){
-      const firstInitialCard = owner==='player' && state.player.hand.length===0 && state.player.slots.every(v=>v===null);
-      const img = firstInitialCard ? 'assets/Carta1.png' : null;
-      state[owner].hand.push(makeCard(owner, img));
+    for (let i=0;i<n;i++) {
+      const card = randFromDeck();
+      state[owner].hand.push(card);
     }
     if (owner==='player' && preview && state.player.hand.length){
       showCardZoom(state.player.hand[state.player.hand.length-1]);
@@ -64,12 +74,10 @@
     elPlayerPollution.textContent = state.player.pollution;
     elEnemyPollution.textContent  = state.enemy.pollution;
   };
-
   const pulse = who => {
     const el = who==='player'?elPlayerBubble:elEnemyBubble;
     el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
   };
-
   const banner = txt => {
     turnBanner.textContent = txt;
     turnBanner.classList.remove('hidden');
@@ -77,22 +85,20 @@
     setTimeout(()=>{turnBanner.classList.remove('show');setTimeout(()=>turnBanner.classList.add('hidden'),250)},3000);
   };
 
-  // ---- Cartas (estructura con overlay de imagen) ----
+  // --------- Render de cartas ----------
   const cardHTML = (card, {inSlot=false}={}) => {
     const el = document.createElement('div');
-    el.className = 'card' + (inSlot ? ' in-slot' : '') + (card.image ? ' has-image' : '');
+    el.className = 'card' + (inSlot ? ' in-slot' : '') + ' has-image';
     el.dataset.cardId = card.id;
 
     const inner = document.createElement('div');
     inner.className = 'card-inner';
 
-    if (card.image){
-      const img = document.createElement('img');
-      img.className = 'card-img';
-      img.src = card.image;
-      img.alt = card.label;
-      inner.appendChild(img); // queda por debajo del contenido
-    }
+    const img = document.createElement('img');
+    img.className = 'card-img';
+    img.src = card.image;
+    img.alt = card.label;
+    inner.appendChild(img);
 
     const title = document.createElement('div');
     title.className = 'title';
@@ -149,11 +155,11 @@
     });
   };
 
-  // ---- Zoom ----
+  // --------- Zoom ----------
   const showCardZoom = (card) => {
     zoomCard.innerHTML = `
       <div class="title" style="font-weight:800">${card.label}</div>
-      ${card.image ? `<img src="${card.image}" alt="${card.label}" style="width:100%;height:55%;object-fit:cover;border-radius:12px;margin:10px 0">` : ''}
+      <img src="${card.image}" alt="${card.label}">
       <div class="number" style="font-size:4rem;text-align:center;font-weight:900;">-${card.value}</div>
       <div style="text-align:center;opacity:.95;margin-bottom:8px">${card.info}</div>
       <div style="display:flex;gap:8px;justify-content:center;">
@@ -165,7 +171,7 @@
   };
   const hideCardZoom = ()=> cardZoom.classList.add('hidden');
 
-  // ---- Efectos / juego ----
+  // --------- Juego ---------
   const flashSlot = slot => { slot.classList.remove('flash'); void slot.offsetWidth; slot.classList.add('flash'); };
   const applyEffect = (who, card) => {
     state[who].pollution = Math.max(0, state[who].pollution - card.value);
@@ -195,7 +201,7 @@
     nextTurn();
   };
 
-  // ---- Turnos ----
+  // --------- Turnos ---------
   const nextTurn = () => {
     state.current = state.current==='player' ? 'enemy' : 'player';
     elTurnLabel.textContent = state.current==='player' ? 'Jugador' : 'Rival';
@@ -215,7 +221,7 @@
     nextTurn();
   };
 
-  // ---- Fin / tiempo ----
+  // --------- Fin / tiempo ---------
   const endGame = (res, subtitle='') => {
     clearInterval(state.intervalId);
     overlay.classList.remove('hidden');
@@ -233,7 +239,7 @@
     if (state.timer<=0){ clearInterval(state.intervalId); decideByTime(); }
   };
 
-  // ---- DnD ----
+  // --------- DnD ---------
   const setupDnD = () => {
     playerSlots.forEach(slot=>{
       slot.addEventListener('dragover', e=>{ if(state.current==='player') e.preventDefault(); });
@@ -249,7 +255,7 @@
     });
   };
 
-  // ---- Inicio ----
+  // --------- Inicio ---------
   const start = () => {
     Object.assign(state.player,{pollution:START_POLLUTION,hand:[],slots:Array(SLOTS).fill(null)});
     Object.assign(state.enemy ,{pollution:START_POLLUTION,hand:[],slots:Array(SLOTS).fill(null)});
