@@ -1,13 +1,13 @@
 (() => {
-  // --------- Configuración ----------
+  // ---- Config ----
   const START_POLLUTION = 50;
   const TURN_DRAW = 1;
   const START_HAND_SIZE = 5;
-  const MATCH_TIME = 5 * 60; // 5 minutos
+  const MATCH_TIME = 5 * 60;
   const CARD_MIN = 2, CARD_MAX = 9;
   const SLOTS = 5;
 
-  // --------- Estado ----------
+  // ---- Estado ----
   const state = {
     player: { pollution: START_POLLUTION, hand: [], slots: Array(SLOTS).fill(null) },
     enemy:  { pollution: START_POLLUTION, hand: [], slots: Array(SLOTS).fill(null) },
@@ -16,8 +16,8 @@
     intervalId: null
   };
 
-  // --------- DOM ----------
-  const $ = (id) => document.getElementById(id);
+  // ---- DOM ----
+  const $ = id => document.getElementById(id);
   const elPlayerPollution = $('playerPollution');
   const elEnemyPollution  = $('enemyPollution');
   const elPlayerBubble    = $('playerBubble');
@@ -35,24 +35,25 @@
   const playerSlots = Array.from(document.querySelectorAll('.lane-player .slot'));
   const enemySlots  = Array.from(document.querySelectorAll('.lane-enemy .slot'));
 
-  // --------- Utilidades ----------
-  const randInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
-  const formatTime = (s) => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  // ---- Utils ----
+  const randInt = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+  const timeFmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
-  const makeCard = (owner, image = null) => {
-    const id = `${owner}-${Math.random().toString(36).slice(2,8)}`;
-    const value = randInt(CARD_MIN, CARD_MAX);
-    return { id, value, label: "Acción Verde", info: "Reduce tu contaminación", image };
-  };
+  const makeCard = (owner, image=null) => ({
+    id: `${owner}-${Math.random().toString(36).slice(2,8)}`,
+    value: randInt(CARD_MIN, CARD_MAX),
+    label: "Acción Verde",
+    info: "Reduce tu contaminación",
+    image
+  });
 
-  // Robar cartas; si es arranque, la primera del jugador lleva imagen
-  const draw = (owner, n=1, showPreview=false) => {
+  const draw = (owner, n=1, preview=false) => {
     for (let i=0;i<n;i++){
-      const shouldHaveImage = owner === 'player' && state.player.hand.length === 0 && state.player.slots.every(v=>v===null);
-      const img = shouldHaveImage ? 'assets/Carta1.png' : null;
+      const firstInitialCard = owner==='player' && state.player.hand.length===0 && state.player.slots.every(v=>v===null);
+      const img = firstInitialCard ? 'assets/Carta1.png' : null;
       state[owner].hand.push(makeCard(owner, img));
     }
-    if (owner === 'player' && showPreview && state.player.hand.length){
+    if (owner==='player' && preview && state.player.hand.length){
       showCardZoom(state.player.hand[state.player.hand.length-1]);
       setTimeout(hideCardZoom, 1100);
     }
@@ -64,56 +65,73 @@
     elEnemyPollution.textContent  = state.enemy.pollution;
   };
 
-  const pulseBubble = (owner) => {
-    const el = owner === 'player' ? elPlayerBubble : elEnemyBubble;
+  const pulse = who => {
+    const el = who==='player'?elPlayerBubble:elEnemyBubble;
     el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
   };
 
-  const showTurnBanner = (text) => {
-    turnBanner.textContent = text;
+  const banner = txt => {
+    turnBanner.textContent = txt;
     turnBanner.classList.remove('hidden');
-    requestAnimationFrame(() => turnBanner.classList.add('show'));
-    setTimeout(() => {
-      turnBanner.classList.remove('show');
-      setTimeout(() => turnBanner.classList.add('hidden'), 250);
-    }, 3000);
+    requestAnimationFrame(()=>turnBanner.classList.add('show'));
+    setTimeout(()=>{turnBanner.classList.remove('show');setTimeout(()=>turnBanner.classList.add('hidden'),250)},3000);
   };
 
-  // --------- Render cartas ----------
+  // ---- Cartas (estructura con overlay de imagen) ----
   const cardHTML = (card, {inSlot=false}={}) => {
-    const div = document.createElement('div');
-    div.className = 'card' + (inSlot ? ' in-slot' : '');
-    div.dataset.cardId = card.id;
-    div.innerHTML = `
-      <div class="title">${card.label}</div>
-      ${card.image ? `<img class="media" src="${card.image}" alt="${card.label}">` : ''}
-      <div class="number">-${card.value}</div>
-      <div class="tag">${card.info}</div>
-    `;
-    return div;
+    const el = document.createElement('div');
+    el.className = 'card' + (inSlot ? ' in-slot' : '') + (card.image ? ' has-image' : '');
+    el.dataset.cardId = card.id;
+
+    const inner = document.createElement('div');
+    inner.className = 'card-inner';
+
+    if (card.image){
+      const img = document.createElement('img');
+      img.className = 'card-img';
+      img.src = card.image;
+      img.alt = card.label;
+      inner.appendChild(img); // queda por debajo del contenido
+    }
+
+    const title = document.createElement('div');
+    title.className = 'title';
+    title.textContent = card.label;
+
+    const num = document.createElement('div');
+    num.className = 'number';
+    num.textContent = `-${card.value}`;
+
+    const tag = document.createElement('div');
+    tag.className = 'tag';
+    tag.textContent = card.info;
+
+    inner.append(title, num, tag);
+    el.appendChild(inner);
+    return el;
   };
 
-  const asDraggable = (el) => {
+  const asDraggable = el => {
     el.draggable = true;
-    el.addEventListener('dragstart', (e) => {
+    el.addEventListener('dragstart', e=>{
       e.dataTransfer.setData('text/plain', el.dataset.cardId);
       e.dataTransfer.setDragImage(el, el.offsetWidth/2, el.offsetHeight/2);
-      playerSlots.forEach(s => s.classList.add('own-target'));
+      playerSlots.forEach(s=>s.classList.add('own-target'));
     });
-    el.addEventListener('dragend', () => {
-      playerSlots.forEach(s => s.classList.remove('own-target'));
+    el.addEventListener('dragend', ()=>{
+      playerSlots.forEach(s=>s.classList.remove('own-target'));
     });
   };
 
   const renderSlots = () => {
     const renderLane = (owner, slotsEls) => {
-      slotsEls.forEach((slotEl, i) => {
+      slotsEls.forEach((slotEl,i)=>{
         slotEl.innerHTML = '';
-        const card = state[owner].slots[i];
-        if (card){
-          const el = cardHTML(card, {inSlot:true});
-          el.addEventListener('click', () => showCardZoom(card));
-          slotEl.appendChild(el);
+        const c = state[owner].slots[i];
+        if (c){
+          const view = cardHTML(c, {inSlot:true});
+          view.addEventListener('click', ()=>showCardZoom(c));
+          slotEl.appendChild(view);
         }
       });
     };
@@ -123,178 +141,126 @@
 
   const refreshHandUI = () => {
     elPlayerHand.innerHTML = '';
-    state.player.hand.forEach(card => {
-      const c = cardHTML(card);
-      c.addEventListener('click', () => showCardZoom(card));
-      asDraggable(c);
-      elPlayerHand.appendChild(c);
+    state.player.hand.forEach(c=>{
+      const view = cardHTML(c);
+      view.addEventListener('click', ()=>showCardZoom(c));
+      asDraggable(view);
+      elPlayerHand.appendChild(view);
     });
   };
 
-  // --------- Zoom ----------
+  // ---- Zoom ----
   const showCardZoom = (card) => {
     zoomCard.innerHTML = `
       <div class="title" style="font-weight:800">${card.label}</div>
-      ${card.image ? `<img class="media" src="${card.image}" alt="${card.label}" style="height:55%;object-fit:cover;">` : ''}
+      ${card.image ? `<img src="${card.image}" alt="${card.label}" style="width:100%;height:55%;object-fit:cover;border-radius:12px;margin:10px 0">` : ''}
       <div class="number" style="font-size:4rem;text-align:center;font-weight:900;">-${card.value}</div>
-      <div style="text-align:center;opacity:.9;margin-bottom:8px">${card.info}</div>
+      <div style="text-align:center;opacity:.95;margin-bottom:8px">${card.info}</div>
       <div style="display:flex;gap:8px;justify-content:center;">
         <button class="btn" id="zoomClose">Cerrar</button>
       </div>`;
     cardZoom.classList.remove('hidden');
     $('zoomClose').onclick = hideCardZoom;
-    cardZoom.onclick = (e)=>{ if (e.target === cardZoom) hideCardZoom(); };
+    cardZoom.onclick = (e)=>{ if (e.target===cardZoom) hideCardZoom(); };
   };
-  const hideCardZoom = () => cardZoom.classList.add('hidden');
+  const hideCardZoom = ()=> cardZoom.classList.add('hidden');
 
-  // --------- Juego de cartas ----------
-  const flashSlot = (slotEl) => {
-    slotEl.classList.remove('flash'); void slotEl.offsetWidth; slotEl.classList.add('flash');
-  };
-
-  const applyCardEffect = (owner, card) => {
-    state[owner].pollution = Math.max(0, state[owner].pollution - card.value);
-    updatePollutionUI();
-    pulseBubble(owner);
+  // ---- Efectos / juego ----
+  const flashSlot = slot => { slot.classList.remove('flash'); void slot.offsetWidth; slot.classList.add('flash'); };
+  const applyEffect = (who, card) => {
+    state[who].pollution = Math.max(0, state[who].pollution - card.value);
+    updatePollutionUI(); pulse(who);
   };
 
-  const playCardIntoPlayerSlot = (slotEl, card) => {
+  const flyFromHandTo = (slotEl, cardId) => {
+    const src = elPlayerHand.querySelector(`[data-card-id="${cardId}"]`);
+    if (!src) return;
+    const a = src.getBoundingClientRect(), b = slotEl.getBoundingClientRect();
+    const ghost = src.cloneNode(true); ghost.classList.add('fly'); document.body.appendChild(ghost);
+    Object.assign(ghost.style,{left:`${a.left}px`,top:`${a.top}px`,width:`${a.width}px`,height:`${a.height}px`,transform:`translate(0,0)`,opacity:'0.95'});
+    requestAnimationFrame(()=>{
+      const dx=b.left-a.left+(b.width-a.width)/2, dy=b.top-a.top+(b.height-a.height)/2;
+      ghost.style.transform=`translate(${dx}px,${dy}px) scale(0.9)`; ghost.style.opacity='0.15';
+      setTimeout(()=>ghost.remove(),230);
+    });
+  };
+
+  const playIntoPlayerSlot = (slotEl, card) => {
     const idx = Number(slotEl.dataset.idx);
-
-    // animación de vuelo
-    flyCardFromHandTo(slotEl, card.id);
-
-    // sustituye o coloca
-    state.player.slots[idx] = card;
-    flashSlot(slotEl);
-    renderSlots();
-
-    applyCardEffect('player', card);
+    flyFromHandTo(slotEl, card.id);
+    state.player.slots[idx] = card; flashSlot(slotEl); renderSlots();
+    applyEffect('player', card);
     if (state.player.pollution === 0) return endGame('win','¡Llegaste a 0 de contaminación!');
-
     refreshHandUI();
     nextTurn();
   };
 
-  // --------- Turnos y fin ----------
+  // ---- Turnos ----
   const nextTurn = () => {
-    state.current = state.current === 'player' ? 'enemy' : 'player';
-    elTurnLabel.textContent = state.current === 'player' ? 'Jugador' : 'Rival';
-    showTurnBanner(state.current === 'player' ? 'Turno del Jugador' : 'Turno del Rival');
-
-    draw(state.current, TURN_DRAW, state.current === 'player');
-
-    if (state.current === 'enemy') setTimeout(enemyPlays, 700);
+    state.current = state.current==='player' ? 'enemy' : 'player';
+    elTurnLabel.textContent = state.current==='player' ? 'Jugador' : 'Rival';
+    banner(state.current==='player' ? 'Turno del Jugador' : 'Turno del Rival');
+    draw(state.current, TURN_DRAW, state.current==='player');
+    if (state.current==='enemy') setTimeout(enemyPlays, 700);
   };
 
   const enemyPlays = () => {
-    const h = state.enemy.hand;
-    if (!h.length) return nextTurn();
-
-    // juega la carta de mayor valor
-    let best = 0;
-    for (let i=1;i<h.length;i++) if (h[i].value > h[best].value) best = i;
+    const h = state.enemy.hand; if (!h.length) return nextTurn();
+    let best=0; for (let i=1;i<h.length;i++) if (h[i].value>h[best].value) best=i;
     const card = h.splice(best,1)[0];
-
-    // primer hueco libre o sustituir el de menor valor
-    let idx = state.enemy.slots.findIndex(s => !s);
-    if (idx === -1) {
-      let minVal = Infinity, minIdx = 0;
-      state.enemy.slots.forEach((c,i)=>{ if(c.value<minVal){minVal=c.value;minIdx=i;} });
-      idx = minIdx;
-    }
-
-    state.enemy.slots[idx] = card;
-    flashSlot(enemySlots[idx]);
-    renderSlots();
-    applyCardEffect('enemy', card);
-
+    let idx = state.enemy.slots.findIndex(s=>!s);
+    if (idx === -1){ let min=Infinity, at=0; state.enemy.slots.forEach((c,i)=>{if(c.value<min){min=c.value;at=i}}); idx=at; }
+    state.enemy.slots[idx]=card; flashSlot(enemySlots[idx]); renderSlots(); applyEffect('enemy',card);
     if (state.enemy.pollution === 0) return endGame('lose','El rival llegó a 0.');
     nextTurn();
   };
 
-  const endGame = (result, subtitle='') => {
+  // ---- Fin / tiempo ----
+  const endGame = (res, subtitle='') => {
     clearInterval(state.intervalId);
     overlay.classList.remove('hidden');
-    overlayTitle.textContent = result === 'win' ? '¡Victoria!' :
-                               result === 'lose' ? 'Derrota' : 'Empate';
+    overlayTitle.textContent = res==='win'?'¡Victoria!':res==='lose'?'Derrota':'Empate';
     overlaySubtitle.textContent = subtitle;
   };
-
   const decideByTime = () => {
-    const { player, enemy } = state;
-    if (player.pollution < enemy.pollution) endGame('win','Ganaste por menor contaminación.');
-    else if (enemy.pollution < player.pollution) endGame('lose','El rival tenía menos contaminación.');
+    const p=state.player.pollution, e=state.enemy.pollution;
+    if (p<e) endGame('win','Ganaste por menor contaminación.');
+    else if (e<p) endGame('lose','El rival tenía menos contaminación.');
     else endGame('draw','Empate al agotar el tiempo.');
   };
-
   const tick = () => {
-    state.timer--;
-    elTimer.textContent = formatTime(state.timer);
-    if (state.timer <= 0) {
-      clearInterval(state.intervalId);
-      decideByTime();
-    }
+    state.timer--; elTimer.textContent = timeFmt(state.timer);
+    if (state.timer<=0){ clearInterval(state.intervalId); decideByTime(); }
   };
 
-  // --------- DnD ----------
+  // ---- DnD ----
   const setupDnD = () => {
     playerSlots.forEach(slot=>{
-      slot.addEventListener('dragover',e=>{
-        if(state.current==='player') e.preventDefault(); // permitir drop siempre (para sustituir)
-      });
-      slot.addEventListener('drop',e=>{
+      slot.addEventListener('dragover', e=>{ if(state.current==='player') e.preventDefault(); });
+      slot.addEventListener('drop', e=>{
         if(state.current!=='player') return;
         e.preventDefault();
         const id = e.dataTransfer.getData('text/plain');
         const i = state.player.hand.findIndex(c=>c.id===id);
-        if(i===-1) return;
+        if (i===-1) return;
         const card = state.player.hand.splice(i,1)[0];
-        playCardIntoPlayerSlot(slot, card);
+        playIntoPlayerSlot(slot, card);
       });
     });
   };
 
-  // --------- Animaciones ----------
-  const flyCardFromHandTo = (slotEl, cardId) => {
-    const srcEl = elPlayerHand.querySelector(`[data-card-id="${cardId}"]`);
-    if (!srcEl) return;
-    const a = srcEl.getBoundingClientRect();
-    const b = slotEl.getBoundingClientRect();
-
-    const ghost = srcEl.cloneNode(true);
-    ghost.classList.add('fly');
-    document.body.appendChild(ghost);
-    ghost.style.left = `${a.left}px`;  ghost.style.top = `${a.top}px`;
-    ghost.style.width = `${a.width}px`; ghost.style.height = `${a.height}px`;
-    ghost.style.transform = `translate(0,0)`; ghost.style.opacity = '0.95';
-
-    requestAnimationFrame(()=>{
-      const dx = b.left - a.left + (b.width - a.width)/2;
-      const dy = b.top  - a.top  + (b.height - a.height)/2;
-      ghost.style.transform = `translate(${dx}px, ${dy}px) scale(0.9)`;
-      ghost.style.opacity = '0.15';
-      setTimeout(()=> ghost.remove(), 230);
-    });
-  };
-
-  // --------- Inicio ----------
+  // ---- Inicio ----
   const start = () => {
     Object.assign(state.player,{pollution:START_POLLUTION,hand:[],slots:Array(SLOTS).fill(null)});
     Object.assign(state.enemy ,{pollution:START_POLLUTION,hand:[],slots:Array(SLOTS).fill(null)});
     state.current='player'; state.timer=MATCH_TIME;
-    clearInterval(state.intervalId);
-    overlay.classList.add('hidden');
-
+    clearInterval(state.intervalId); overlay.classList.add('hidden');
     updatePollutionUI(); renderSlots(); refreshHandUI();
-
-    // mano inicial (primera carta del jugador con imagen)
     draw('player', START_HAND_SIZE, true);
     draw('enemy',  START_HAND_SIZE, false);
-
-    elTimer.textContent = formatTime(state.timer);
+    elTimer.textContent = timeFmt(state.timer);
     state.intervalId = setInterval(tick, 1000);
-    showTurnBanner('Turno del Jugador');
+    banner('Turno del Jugador');
   };
 
   restartBtn.addEventListener('click', start);
