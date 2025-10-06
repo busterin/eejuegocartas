@@ -70,20 +70,11 @@
     el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
   };
 
-  const isPlayerBoardFull = () => state.player.slots.every(Boolean);
-
   const updateTurnUI = () => {
     elTurnLabel.textContent = state.current === 'player' ? 'Jugador' : 'Rival';
-
-    // resaltar objetivos válidos
-    const highlight = (slotEl) => {
-      const idx = Number(slotEl.dataset.idx);
-      const empty = !state.player.slots[idx];
-      const canDrop = state.current === 'player' && (empty || isPlayerBoardFull());
-      slotEl.classList.toggle('own-target', canDrop);
-    };
-    playerSlots.forEach(highlight);
-    enemySlots.forEach(s => s.classList.toggle('enemy-target', state.current === 'enemy' && !state.enemy.slots[Number(s.dataset.idx)]));
+    // resaltar slots del jugador como posibles objetivos siempre en tu turno (permite sustituir)
+    playerSlots.forEach(s => s.classList.toggle('own-target', state.current === 'player'));
+    enemySlots.forEach(s => s.classList.toggle('enemy-target', state.current === 'enemy'));
   };
 
   const showTurnBanner = (text) => {
@@ -116,24 +107,15 @@
       state.draggingId = el.dataset.cardId;
       e.dataTransfer.setData('text/plain', state.draggingId);
       e.dataTransfer.setDragImage(el, el.offsetWidth/2, el.offsetHeight/2);
-      highlightPlayerSlots(true);
+      playerSlots.forEach(s => s.classList.add('own-target'));
     });
     el.addEventListener('dragend', () => {
       state.draggingId = null;
-      highlightPlayerSlots(false);
+      playerSlots.forEach(s => s.classList.remove('own-target'));
     });
   };
 
-  const highlightPlayerSlots = (on) => {
-    if (!on){ playerSlots.forEach(s => s.classList.remove('own-target')); return; }
-    playerSlots.forEach(s => {
-      const idx = Number(s.dataset.idx);
-      const empty = !state.player.slots[idx];
-      if (empty || isPlayerBoardFull()) s.classList.add('own-target');
-    });
-  };
-
-  // Render de slots (muestra carta adaptada al hueco)
+  // Render de slots
   const renderSlots = () => {
     const renderLane = (owner, slotsEls) => {
       slotsEls.forEach((slotEl, i) => {
@@ -177,18 +159,19 @@
   };
   const hideCardZoom = () => { cardZoom.classList.add('hidden'); };
 
-  // Colocar carta en slot (juega y aplica efecto; si board lleno y slot ocupado, sustituye)
+  // Colocar carta en slot del jugador (si hay, sustituye)
   const playCardIntoPlayerSlot = (slotEl, card) => {
     const slotIdx = Number(slotEl.dataset.idx);
-    const targetOccupied = !!state.player.slots[slotIdx];
-
-    if (targetOccupied && !isPlayerBoardFull()) return false; // si no está lleno, solo permitimos en hueco vacío
 
     // animación vuelo
     flyCardToSlot(card, slotEl);
 
-    // sustituir o colocar
+    // sustituir/colocar
     state.player.slots[slotIdx] = card;
+
+    // destello del slot
+    flashSlot(slotEl);
+
     renderSlots();
 
     // aplicar efecto de la carta
@@ -236,14 +219,11 @@
     // Robar al inicio del turno
     draw(state.current, TURN_DRAW, state.current === 'player');
 
-    // si ambos llenos y nadie a 0, decidir por tiempo
-    const full = (p) => p.slots.every(Boolean);
-    if (full(state.player) && full(state.enemy)) decideByTime();
-
+    // NO terminar por slots llenos; solo por 0 o tiempo
     if (state.current === 'enemy') setTimeout(enemyPlays, 700);
   };
 
-  // Enemigo: juega en primer hueco libre; si lleno, sustituye el de menor valor (para ganar algo de IA)
+  // Enemigo: juega en primer hueco libre; si no hay, sustituye el de menor valor
   const enemyPlays = () => {
     const hand = state.enemy.hand;
     if (hand.length === 0) { nextTurn(); return; }
@@ -255,15 +235,15 @@
 
     let slotIdx = state.enemy.slots.findIndex(s => !s);
     if (slotIdx === -1) {
-      // si lleno, sustituye el de menor valor
       let minVal = Infinity; let minIdx = 0;
       state.enemy.slots.forEach((c, i) => { if (c.value < minVal){ minVal=c.value; minIdx=i; } });
       slotIdx = minIdx;
     }
 
     const slotEl = enemySlots[slotIdx];
-    flyEnemyCardToSlot(slotEl); // animación simple
+    flyEnemyCardToSlot(slotEl);
     state.enemy.slots[slotIdx] = card;
+    flashSlot(slotEl);
     renderSlots();
     applyCardEffect('enemy', card);
 
@@ -278,20 +258,17 @@
     if (state.timer <= 0) { clearInterval(state.intervalId); decideByTime(); }
   };
 
-  // Drag & Drop eventos para slots del jugador
+  // Drag & Drop para slots del jugador
   const setupSlotDnD = () => {
     playerSlots.forEach(slot => {
       slot.addEventListener('dragover', (e) => {
         if (state.current !== 'player') return;
-        const idx = Number(slot.dataset.idx);
-        const empty = !state.player.slots[idx];
-        if (empty || isPlayerBoardFull()) e.preventDefault();
+        e.preventDefault(); // permitir drop siempre para poder sustituir
       });
       slot.addEventListener('drop', (e) => {
         if (state.current !== 'player') return;
         e.preventDefault();
         const id = e.dataTransfer.getData('text/plain');
-        // buscar carta en mano
         const i = state.player.hand.findIndex(c => c.id === id);
         if (i === -1) return;
         const card = state.player.hand.splice(i,1)[0];
@@ -300,7 +277,7 @@
     });
   };
 
-  // Animación: vuelo desde la mano al slot
+  // Animaciones
   const flyCardToSlot = (card, slotEl) => {
     const srcEl = elPlayerHand.querySelector(`[data-card-id="${card.id}"]`);
     if (!srcEl) return;
@@ -327,7 +304,6 @@
     });
   };
 
-  // Animación simple para enemigo
   const flyEnemyCardToSlot = (slotEl) => {
     const rectTo = slotEl.getBoundingClientRect();
     const ghost = document.createElement('div');
@@ -345,6 +321,10 @@
       ghost.style.opacity = '0.2';
       setTimeout(()=> ghost.remove(), 240);
     });
+  };
+
+  const flashSlot = (slotEl) => {
+    slotEl.classList.remove('flash'); void slotEl.offsetWidth; slotEl.classList.add('flash');
   };
 
   // Inicio/reinicio
@@ -375,9 +355,6 @@
 
   restartBtn.addEventListener('click', start);
 
-  // Preparar DnD en slots
   setupSlotDnD();
-
-  // Inicia el juego
   start();
 })();
