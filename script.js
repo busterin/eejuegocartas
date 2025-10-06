@@ -14,7 +14,7 @@
     current: 'player',
     timer: MATCH_TIME,
     intervalId: null,
-    draggingId: null,    // id carta arrastrada
+    draggingId: null,
   };
 
   // --------- DOM ----------
@@ -53,10 +53,8 @@
       state[owner].hand.push(c);
       cards.push(c);
     }
-    // Vista previa: solo para el jugador por equilibrio
     if (owner === 'player' && showPreview && cards.length){
       showCardZoom(cards[cards.length-1]);
-      // cerrar al hacer clic en cualquier lugar
       setTimeout(() => hideCardZoom(), 1100);
     }
     refreshHandUI();
@@ -69,33 +67,38 @@
 
   const pulseBubble = (owner) => {
     const el = owner === 'player' ? elPlayerBubble : elEnemyBubble;
-    el.classList.remove('hit');
-    // forzar reflow para reiniciar la animación
-    void el.offsetWidth;
-    el.classList.add('hit');
+    el.classList.remove('hit'); void el.offsetWidth; el.classList.add('hit');
   };
+
+  const isPlayerBoardFull = () => state.player.slots.every(Boolean);
 
   const updateTurnUI = () => {
     elTurnLabel.textContent = state.current === 'player' ? 'Jugador' : 'Rival';
-    playerSlots.forEach(s => s.classList.toggle('own-target', state.current === 'player' && s.dataset.empty === 'true'));
-    enemySlots.forEach(s => s.classList.toggle('enemy-target', state.current === 'enemy' && s.dataset.empty === 'true'));
+
+    // resaltar objetivos válidos
+    const highlight = (slotEl) => {
+      const idx = Number(slotEl.dataset.idx);
+      const empty = !state.player.slots[idx];
+      const canDrop = state.current === 'player' && (empty || isPlayerBoardFull());
+      slotEl.classList.toggle('own-target', canDrop);
+    };
+    playerSlots.forEach(highlight);
+    enemySlots.forEach(s => s.classList.toggle('enemy-target', state.current === 'enemy' && !state.enemy.slots[Number(s.dataset.idx)]));
   };
 
   const showTurnBanner = (text) => {
     turnBanner.textContent = text;
     turnBanner.classList.remove('hidden');
-    requestAnimationFrame(() => {
-      turnBanner.classList.add('show');
-    });
+    requestAnimationFrame(() => turnBanner.classList.add('show'));
     setTimeout(() => {
       turnBanner.classList.remove('show');
       setTimeout(() => turnBanner.classList.add('hidden'), 250);
     }, 3000);
   };
 
-  const cardHTML = (card, {compact=false}={}) => {
+  const cardHTML = (card, {inSlot=false}={}) => {
     const cls = ['card'];
-    if (compact) cls.push('compact');
+    if (inSlot) cls.push('in-slot');
     const div = document.createElement('div');
     div.className = cls.join(' ');
     div.innerHTML = `
@@ -112,41 +115,34 @@
     el.addEventListener('dragstart', (e) => {
       state.draggingId = el.dataset.cardId;
       e.dataTransfer.setData('text/plain', state.draggingId);
-      // “carta fantasma” más pequeña
       e.dataTransfer.setDragImage(el, el.offsetWidth/2, el.offsetHeight/2);
-      highlightPlayerEmptySlots(true);
+      highlightPlayerSlots(true);
     });
     el.addEventListener('dragend', () => {
       state.draggingId = null;
-      highlightPlayerEmptySlots(false);
+      highlightPlayerSlots(false);
     });
   };
 
-  const highlightPlayerEmptySlots = (on) => {
-    if (!on){
-      playerSlots.forEach(s => s.classList.remove('own-target'));
-      return;
-    }
+  const highlightPlayerSlots = (on) => {
+    if (!on){ playerSlots.forEach(s => s.classList.remove('own-target')); return; }
     playerSlots.forEach(s => {
-      if (s.dataset.empty === 'true') s.classList.add('own-target');
+      const idx = Number(s.dataset.idx);
+      const empty = !state.player.slots[idx];
+      if (empty || isPlayerBoardFull()) s.classList.add('own-target');
     });
   };
 
-  // Render de slots (muestra carta compacta si hay)
+  // Render de slots (muestra carta adaptada al hueco)
   const renderSlots = () => {
     const renderLane = (owner, slotsEls) => {
       slotsEls.forEach((slotEl, i) => {
         const card = state[owner].slots[i];
         slotEl.innerHTML = '';
         if (card){
-          const view = cardHTML(card, {compact:true});
+          const view = cardHTML(card, {inSlot:true});
           view.addEventListener('click', () => showCardZoom(card));
           slotEl.appendChild(view);
-          slotEl.dataset.empty = 'false';
-          slotEl.classList.remove('empty');
-        } else {
-          slotEl.dataset.empty = 'true';
-          slotEl.classList.add('empty');
         }
       });
     };
@@ -179,19 +175,34 @@
     document.getElementById('zoomClose').onclick = hideCardZoom;
     cardZoom.onclick = (e)=>{ if (e.target === cardZoom) hideCardZoom(); };
   };
-  const hideCardZoom = () => {
-    cardZoom.classList.add('hidden');
-  };
+  const hideCardZoom = () => { cardZoom.classList.add('hidden'); };
 
-  // Colocar carta en slot (propietario y posición)
-  const placeCardToSlot = (owner, card, idx) => {
-    if (state[owner].slots[idx]) return false;
-    state[owner].slots[idx] = card;
+  // Colocar carta en slot (juega y aplica efecto; si board lleno y slot ocupado, sustituye)
+  const playCardIntoPlayerSlot = (slotEl, card) => {
+    const slotIdx = Number(slotEl.dataset.idx);
+    const targetOccupied = !!state.player.slots[slotIdx];
+
+    if (targetOccupied && !isPlayerBoardFull()) return false; // si no está lleno, solo permitimos en hueco vacío
+
+    // animación vuelo
+    flyCardToSlot(card, slotEl);
+
+    // sustituir o colocar
+    state.player.slots[slotIdx] = card;
     renderSlots();
+
+    // aplicar efecto de la carta
+    applyCardEffect('player', card);
+    if (state.player.pollution === 0) {
+      endGame('win', '¡Llegaste a 0 de contaminación!');
+      return true;
+    }
+
+    refreshHandUI();
+    nextTurn();
     return true;
   };
 
-  // Efecto de carta (reduce contaminación propia)
   const applyCardEffect = (owner, card) => {
     state[owner].pollution = Math.max(0, state[owner].pollution - card.value);
     updatePollutionUI();
@@ -223,42 +234,40 @@
     showTurnBanner(state.current === 'player' ? 'Turno del Jugador' : 'Turno del Rival');
 
     // Robar al inicio del turno
-    draw(state.current, TURN_DRAW, /*showPreview*/ state.current === 'player');
+    draw(state.current, TURN_DRAW, state.current === 'player');
 
-    // Comprobar slots completos para ambos
-    const full = (p) => p.slots.filter(Boolean).length >= MAX_SLOTS;
-    if (full(state.player) && full(state.enemy)) {
-      // si nadie llegó a 0, decidir por tiempo
-      decideByTime();
-      return;
-    }
+    // si ambos llenos y nadie a 0, decidir por tiempo
+    const full = (p) => p.slots.every(Boolean);
+    if (full(state.player) && full(state.enemy)) decideByTime();
 
-    // IA simple
-    if (state.current === 'enemy') {
-      setTimeout(enemyPlays, 700);
-    }
+    if (state.current === 'enemy') setTimeout(enemyPlays, 700);
   };
 
-  // Enemigo: juega en el primer hueco libre la carta que más reduce
+  // Enemigo: juega en primer hueco libre; si lleno, sustituye el de menor valor (para ganar algo de IA)
   const enemyPlays = () => {
     const hand = state.enemy.hand;
-    const freeIdx = state.enemy.slots.findIndex(s => !s);
-    if (freeIdx === -1 || hand.length === 0) {
-      nextTurn();
-      return;
-    }
-    // elige carta de mayor valor
+    if (hand.length === 0) { nextTurn(); return; }
+
+    // carta de mayor valor
     let bestIdx = 0;
-    for (let i=1;i<hand.length;i++){
-      if (hand[i].value > hand[bestIdx].value) bestIdx = i;
-    }
+    for (let i=1;i<hand.length;i++) if (hand[i].value > hand[bestIdx].value) bestIdx = i;
     const card = hand.splice(bestIdx,1)[0];
-    placeCardToSlot('enemy', card, freeIdx);
-    applyCardEffect('enemy', card);
-    if (state.enemy.pollution === 0) {
-      endGame('lose', 'El rival alcanzó 0 de contaminación.');
-      return;
+
+    let slotIdx = state.enemy.slots.findIndex(s => !s);
+    if (slotIdx === -1) {
+      // si lleno, sustituye el de menor valor
+      let minVal = Infinity; let minIdx = 0;
+      state.enemy.slots.forEach((c, i) => { if (c.value < minVal){ minVal=c.value; minIdx=i; } });
+      slotIdx = minIdx;
     }
+
+    const slotEl = enemySlots[slotIdx];
+    flyEnemyCardToSlot(slotEl); // animación simple
+    state.enemy.slots[slotIdx] = card;
+    renderSlots();
+    applyCardEffect('enemy', card);
+
+    if (state.enemy.pollution === 0) { endGame('lose', 'El rival alcanzó 0 de contaminación.'); return; }
     nextTurn();
   };
 
@@ -266,10 +275,7 @@
   const tick = () => {
     state.timer--;
     elTimer.textContent = formatTime(state.timer);
-    if (state.timer <= 0) {
-      clearInterval(state.intervalId);
-      decideByTime();
-    }
+    if (state.timer <= 0) { clearInterval(state.intervalId); decideByTime(); }
   };
 
   // Drag & Drop eventos para slots del jugador
@@ -277,42 +283,25 @@
     playerSlots.forEach(slot => {
       slot.addEventListener('dragover', (e) => {
         if (state.current !== 'player') return;
-        if (slot.dataset.empty === 'true') e.preventDefault();
+        const idx = Number(slot.dataset.idx);
+        const empty = !state.player.slots[idx];
+        if (empty || isPlayerBoardFull()) e.preventDefault();
       });
       slot.addEventListener('drop', (e) => {
         if (state.current !== 'player') return;
         e.preventDefault();
         const id = e.dataTransfer.getData('text/plain');
-        tryPlacePlayerCardTo(slot, id);
+        // buscar carta en mano
+        const i = state.player.hand.findIndex(c => c.id === id);
+        if (i === -1) return;
+        const card = state.player.hand.splice(i,1)[0];
+        playCardIntoPlayerSlot(slot, card);
       });
-      // Click en slot con carta: el renderSlots ya añade click en la carta compacta
     });
   };
 
-  const tryPlacePlayerCardTo = (slotEl, cardId) => {
-    // buscar carta en mano
-    const idx = state.player.hand.findIndex(c => c.id === cardId);
-    if (idx === -1) return;
-    const card = state.player.hand.splice(idx,1)[0];
-
-    // animación "vuelo" desde mano hasta slot
-    flyCardToSlot(card, slotEl);
-
-    const slotIdx = Number(slotEl.dataset.idx);
-    placeCardToSlot('player', card, slotIdx);
-    applyCardEffect('player', card);
-
-    if (state.player.pollution === 0) {
-      endGame('win', '¡Llegaste a 0 de contaminación!');
-      return;
-    }
-
-    refreshHandUI();
-    nextTurn();
-  };
-
+  // Animación: vuelo desde la mano al slot
   const flyCardToSlot = (card, slotEl) => {
-    // crear clon visual desde la mano
     const srcEl = elPlayerHand.querySelector(`[data-card-id="${card.id}"]`);
     if (!srcEl) return;
     const rectFrom = srcEl.getBoundingClientRect();
@@ -322,7 +311,6 @@
     ghost.classList.add('fly');
     document.body.appendChild(ghost);
 
-    // posición inicial
     ghost.style.left = `${rectFrom.left}px`;
     ghost.style.top = `${rectFrom.top}px`;
     ghost.style.width = `${rectFrom.width}px`;
@@ -330,7 +318,6 @@
     ghost.style.transform = `translate(0,0)`;
     ghost.style.opacity = '0.95';
 
-    // siguiente frame -> mover
     requestAnimationFrame(() => {
       const dx = rectTo.left - rectFrom.left + (rectTo.width - rectFrom.width)/2;
       const dy = rectTo.top - rectFrom.top + (rectTo.height - rectFrom.height)/2;
@@ -340,9 +327,28 @@
     });
   };
 
+  // Animación simple para enemigo
+  const flyEnemyCardToSlot = (slotEl) => {
+    const rectTo = slotEl.getBoundingClientRect();
+    const ghost = document.createElement('div');
+    ghost.className = 'card fly';
+    ghost.style.left = `${rectTo.left + rectTo.width/2}px`;
+    ghost.style.top = `-60px`;
+    ghost.style.width = `120px`;
+    ghost.style.height = `160px`;
+    ghost.style.transform = `translate(-50%, 0)`;
+    ghost.style.opacity = '0.0';
+    ghost.innerHTML = `<div class="title">Acción Verde</div><div class="number">-?</div><div class="tag">Reduce</div>`;
+    document.body.appendChild(ghost);
+    requestAnimationFrame(() => {
+      ghost.style.transform = `translate(-50%, ${rectTo.top + 40}px)`;
+      ghost.style.opacity = '0.2';
+      setTimeout(()=> ghost.remove(), 240);
+    });
+  };
+
   // Inicio/reinicio
   const start = () => {
-    // reset
     Object.assign(state.player, { pollution: START_POLLUTION, hand: [], slots: [null,null,null,null,null] });
     Object.assign(state.enemy,  { pollution: START_POLLUTION, hand: [], slots: [null,null,null,null,null] });
     state.current = 'player';
@@ -356,14 +362,14 @@
     updateTurnUI();
 
     // robar inicial
-    draw('player', START_HAND_SIZE, /*preview*/ true);
-    draw('enemy', START_HAND_SIZE, /*preview*/ false);
+    draw('player', START_HAND_SIZE, true);
+    draw('enemy', START_HAND_SIZE, false);
 
     // temporizador
     elTimer.textContent = formatTime(state.timer);
     state.intervalId = setInterval(tick, 1000);
 
-    // turn banner inicial
+    // banner inicial
     showTurnBanner('Turno del Jugador');
   };
 
