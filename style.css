@@ -206,7 +206,7 @@ body{
 .btn{background:var(--accent);color:#042312;font-weight:800;border:none;border-radius:12px;padding:10px 14px;cursor:pointer;box-shadow:var(--shadow)}
 .btn:hover{filter:brightness(1.05)}
 
-/* zoom */
+/* --- ZOOM DE CARTA --- */
 .zoom{
   position:fixed;inset:0;
   display:grid;place-items:center;
@@ -214,6 +214,7 @@ body{
   z-index:25;
 }
 .zoom.hidden{display:none}
+
 .zoom-card{
   width:min(80vw,340px);
   height:min(80vh,480px);
@@ -226,15 +227,37 @@ body{
   flex-direction:column;
   justify-content:space-between;
   animation:zoomIn 160ms ease;
-  overflow:hidden; /* también recorta imagen */
-}
-.zoom-card img{
-  width:100%;
-  height:55%;
-  object-fit:cover;
-  border-radius:12px;
+  position:relative;
   overflow:hidden;
 }
+
+/* Imagen dentro de la carta al hacer zoom */
+.zoom-card img{
+  position:absolute;
+  inset:16px;
+  width:auto;height:auto;
+  max-width:calc(100% - 32px);
+  max-height:calc(100% - 32px);
+  object-fit:cover;
+  border-radius:12px;
+  z-index:1;
+  pointer-events:none;
+}
+
+/* velo y textos como en las cartas */
+.zoom-card::after{
+  content:"";
+  position:absolute;inset:0;z-index:1;
+  border-radius:20px;
+  background:linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.35));
+}
+.zoom-card .title,
+.zoom-card .number,
+.zoom-card .tag,
+.zoom-card .btn{
+  position:relative;z-index:2;
+}
+
 @keyframes zoomIn{
   from{transform:scale(.9);opacity:0}
   to{transform:scale(1);opacity:1}
