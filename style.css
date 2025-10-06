@@ -59,9 +59,7 @@ body{
   box-shadow: inset 0 0 0 3px var(--accent), var(--shadow);
   font-weight:700; font-variant-numeric: tabular-nums;
 }
-.pollution.hit{
-  animation: pop 420ms ease;
-}
+.pollution.hit{ animation: pop 420ms ease; }
 @keyframes pop{
   0%{ transform: scale(1); box-shadow: inset 0 0 0 3px var(--accent), var(--shadow); }
   40%{ transform: scale(1.12); box-shadow: inset 0 0 0 5px #9ff0b3, var(--shadow); }
@@ -105,14 +103,11 @@ body{
   color:var(--muted);
   user-select:none;
 }
-.slot.empty::after{
-  content:"Hueco";
-  font-size:.9rem;
-  opacity:.6;
-}
+/* (Quitado el ::after "Hueco") */
 .slot.own-target{ outline-color: var(--accent); filter: drop-shadow(0 0 10px rgba(123,228,149,.35)); }
 .slot.enemy-target{ outline-color: var(--danger) }
 
+/* Carta base (vertical) */
 .card{
   background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
   border:2px solid var(--card-edge);
@@ -139,10 +134,17 @@ body{
   background:rgba(255,255,255,.06); border-radius:8px; padding:4px 6px;
 }
 
-/* Carta dentro de slot (versión compacta) */
-.card.compact{
-  width:100px; height:140px;
+/* Carta que está dentro de un slot: se adapta al hueco */
+.card.in-slot{
+  width:100%; height:100%;
+  border-radius:12px;
+  padding:8px;
 }
+.card.in-slot .number{ font-size: clamp(1.4rem, 3.2vw, 2rem); }
+.card.in-slot .title{ font-size: clamp(.9rem, 2.6vw, 1rem); }
+.card.in-slot .tag{ font-size: clamp(.65rem, 2.2vw, .8rem); }
+
+/* Clon en vuelo */
 .card.fly{
   position: fixed;
   pointer-events: none;
@@ -179,7 +181,7 @@ body{
 }
 .btn:hover{ filter: brightness(1.05) }
 
-/* Zoom de carta */
+/* Zoom de carta (vertical) */
 .zoom{
   position: fixed; inset: 0;
   display: grid; place-items: center;
@@ -201,7 +203,7 @@ body{
   to{ transform: scale(1); opacity: 1; }
 }
 
-/* Responsive tweaks */
+/* Responsive */
 @media (max-width: 720px){
   .slot{height:90px}
   .card{width:110px; height:150px}
