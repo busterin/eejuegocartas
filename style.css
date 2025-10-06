@@ -107,9 +107,7 @@ body{
 .slot.enemy-target{ outline-color: var(--danger) }
 
 /* Destello del slot al colocar carta */
-.slot.flash{
-  animation: slotFlash 420ms ease;
-}
+.slot.flash{ animation: slotFlash 420ms ease; }
 @keyframes slotFlash{
   0%{ box-shadow: 0 0 0 0 rgba(123,228,149,.0); }
   40%{ box-shadow: 0 0 18px 6px rgba(123,228,149,.45); }
@@ -141,6 +139,9 @@ body{
 .card .tag{
   font-size:.75rem; opacity:.85; text-align:center;
   background:rgba(255,255,255,.06); border-radius:8px; padding:4px 6px;
+}
+.card .media{
+  width:100%; border-radius:8px; flex-grow:1; object-fit:cover; margin:4px 0;
 }
 
 /* Carta en slot: ocupa todo y rebota */
