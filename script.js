@@ -113,8 +113,8 @@
     return el;
   };
 
-  // ===== DRAG & DROP con Pointer Events (tap=zoom; arrastre sin duplicados) =====
-  const DRAG_THRESHOLD = 6; // px
+  // ===== DRAG & DROP con Pointer Events (tap=zoom; ghost solo al mover) =====
+  const DRAG_THRESHOLD = 12; // px: más tolerante para distinguir tap de drag
   let drag = {
     active:false, moved:false,
     id:null, card:null, originEl:null,
@@ -131,37 +131,48 @@
     drag.startX = e.clientX; drag.startY = e.clientY;
     drag.startRect = cardEl.getBoundingClientRect();
 
-    // Ghost único
-    const g = cardEl.cloneNode(true);
-    g.classList.add('fly');
-    Object.assign(g.style,{
-      left:`${drag.startRect.left}px`, top:`${drag.startRect.top}px`,
-      width:`${drag.startRect.width}px`, height:`${drag.startRect.height}px`,
-      transform:`translate(0,0)`, opacity:'0.95', transition:'none'
-    });
-    document.body.appendChild(g);
-    drag.ghost = g;
-
-    // Oculta original (evita ver duplicado)
-    cardEl.style.visibility = 'hidden';
-
-    // Resalta slots válidos
+    // Resaltamos slots (opcional, feedback)
     playerSlots.forEach(s=>s.classList.add('own-target'));
 
-    e.target.setPointerCapture?.(e.pointerId);
-    window.addEventListener('pointermove', onPointerMove);
-    window.addEventListener('pointerup', onPointerUp, { once:true });
+    // Escuchamos en document para robustez en móvil
+    document.addEventListener('pointermove', onPointerMove);
+    document.addEventListener('pointerup', onPointerUp, { once:true });
+    document.addEventListener('pointercancel', onPointerCancel, { once:true });
   };
 
   const onPointerMove = (e) => {
-    if (!drag.active || !drag.ghost) return;
+    if (!drag.active) return;
     const dx = e.clientX - drag.startX;
     const dy = e.clientY - drag.startY;
-    if (!drag.moved && Math.hypot(dx,dy) > DRAG_THRESHOLD) drag.moved = true;
-    drag.ghost.style.transform = `translate(${dx}px, ${dy}px)`;
+
+    // Hasta superar el umbral, seguimos en "tap"
+    if (!drag.moved) {
+      if (Math.hypot(dx, dy) <= DRAG_THRESHOLD) return;
+
+      // A partir de aquí SÍ es arrastre: creamos ghost y ocultamos original
+      drag.moved = true;
+
+      const g = drag.originEl.cloneNode(true);
+      g.classList.add('fly');
+      Object.assign(g.style, {
+        left:`${drag.startRect.left}px`, top:`${drag.startRect.top}px`,
+        width:`${drag.startRect.width}px`, height:`${drag.startRect.height}px`,
+        transform:`translate(0,0)`, opacity:'0.95', transition:'none'
+      });
+      document.body.appendChild(g);
+      drag.ghost = g;
+
+      drag.originEl.style.visibility = 'hidden';
+    }
+
+    // Mover ghost
+    if (drag.ghost) {
+      drag.ghost.style.transform = `translate(${dx}px, ${dy}px)`;
+    }
   };
 
   const animateGhostTo = (slotEl, onEnd) => {
+    if (!drag.ghost) return onEnd();
     const b = slotEl.getBoundingClientRect();
     const dxF = b.left - drag.startRect.left + (b.width - drag.startRect.width)/2;
     const dyF = b.top  - drag.startRect.top  + (b.height - drag.startRect.height)/2;
@@ -172,6 +183,7 @@
   };
 
   const animateGhostBack = (onEnd) => {
+    if (!drag.ghost) return onEnd();
     drag.ghost.style.transition = 'transform 180ms ease, opacity 180ms ease';
     drag.ghost.style.transform  = 'translate(0,0)';
     drag.ghost.style.opacity    = '1';
@@ -182,15 +194,13 @@
     if (drag.originEl) drag.originEl.style.visibility = '';
     if (drag.ghost) { try{ drag.ghost.remove(); }catch{} }
     playerSlots.forEach(s=>s.classList.remove('own-target'));
-    window.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('pointercancel', onPointerCancel);
     drag = { active:false, moved:false, id:null, card:null, originEl:null, startX:0, startY:0, startRect:null, ghost:null };
   };
 
   const onPointerUp = (e) => {
     if (!drag.active) return;
-
-    const dropEl = document.elementFromPoint(e.clientX, e.clientY);
-    const slot = dropEl?.closest?.('.lane-player .slot');
 
     // TAP sin mover ⇒ ZOOM (en la mano)
     if (!drag.moved) {
@@ -199,8 +209,11 @@
       return;
     }
 
+    // Soltó arrastrando: buscamos slot jugador
+    const dropEl = document.elementFromPoint(e.clientX, e.clientY);
+    const slot = dropEl?.closest?.('.lane-player .slot');
+
     if (slot && state.current === 'player') {
-      // Animar al slot y jugar
       animateGhostTo(slot, () => {
         const idx = state.player.hand.findIndex(c=>c.id===drag.id);
         if (idx !== -1) {
@@ -219,9 +232,13 @@
         }
       });
     } else {
-      // Volver a origen
+      // Fuera: volver a origen
       animateGhostBack(() => cleanupDrag());
     }
+  };
+
+  const onPointerCancel = () => {
+    animateGhostBack(() => cleanupDrag());
   };
   // ===================================================================
 
