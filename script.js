@@ -96,25 +96,19 @@
     img.src = card.image;
     img.alt = card.label;
 
-    const title = document.createElement('div');
-    title.className = 'title';
-    title.textContent = card.label;
-
+    // Solo número visible (el CSS oculta título/tag)
     const num = document.createElement('div');
     num.className = 'number';
     num.textContent = `-${card.value}`;
 
-    const tag = document.createElement('div');
-    tag.className = 'tag';
-    tag.textContent = card.info;
-
-    inner.append(img, title, num, tag);
+    inner.append(img, num);
     el.appendChild(inner);
     return el;
   };
 
-  // ===== DRAG & DROP con Pointer Events (tap=zoom; ghost solo al mover) =====
-  const DRAG_THRESHOLD = 12; // px: más tolerante para distinguir tap de drag
+  // ===== DRAG & DROP con Pointer Events =====
+  // Tap en mano = zoom; si se mueve tras pulsar = arrastre
+  const DRAG_THRESHOLD = 12; // px
   let drag = {
     active:false, moved:false,
     id:null, card:null, originEl:null,
@@ -131,10 +125,10 @@
     drag.startX = e.clientX; drag.startY = e.clientY;
     drag.startRect = cardEl.getBoundingClientRect();
 
-    // Resaltamos slots (opcional, feedback)
-    playerSlots.forEach(s=>s.classList.add('own-target'));
+    // ❌ Ya no iluminamos huecos aquí
+    // (ni en ningún momento: elimina el efecto por completo)
 
-    // Escuchamos en document para robustez en móvil
+    // Listeners en document para robustez móvil
     document.addEventListener('pointermove', onPointerMove);
     document.addEventListener('pointerup', onPointerUp, { once:true });
     document.addEventListener('pointercancel', onPointerCancel, { once:true });
@@ -145,11 +139,11 @@
     const dx = e.clientX - drag.startX;
     const dy = e.clientY - drag.startY;
 
-    // Hasta superar el umbral, seguimos en "tap"
+    // Hasta superar el umbral, seguimos “tap” (permitirá zoom)
     if (!drag.moved) {
       if (Math.hypot(dx, dy) <= DRAG_THRESHOLD) return;
 
-      // A partir de aquí SÍ es arrastre: creamos ghost y ocultamos original
+      // Desde aquí SÍ es arrastre: creamos ghost y ocultamos original
       drag.moved = true;
 
       const g = drag.originEl.cloneNode(true);
@@ -165,7 +159,6 @@
       drag.originEl.style.visibility = 'hidden';
     }
 
-    // Mover ghost
     if (drag.ghost) {
       drag.ghost.style.transform = `translate(${dx}px, ${dy}px)`;
     }
@@ -193,7 +186,7 @@
   const cleanupDrag = () => {
     if (drag.originEl) drag.originEl.style.visibility = '';
     if (drag.ghost) { try{ drag.ghost.remove(); }catch{} }
-    playerSlots.forEach(s=>s.classList.remove('own-target'));
+    // Ya no añadimos ni quitamos clases de “own-target”
     document.removeEventListener('pointermove', onPointerMove);
     document.removeEventListener('pointercancel', onPointerCancel);
     drag = { active:false, moved:false, id:null, card:null, originEl:null, startX:0, startY:0, startRect:null, ghost:null };
@@ -209,7 +202,7 @@
       return;
     }
 
-    // Soltó arrastrando: buscamos slot jugador
+    // Si hubo arrastre: intentar colocar en slot del jugador
     const dropEl = document.elementFromPoint(e.clientX, e.clientY);
     const slot = dropEl?.closest?.('.lane-player .slot');
 
@@ -240,8 +233,8 @@
   const onPointerCancel = () => {
     animateGhostBack(() => cleanupDrag());
   };
-  // ===================================================================
 
+  // --------- Render de slots ----------
   const renderSlots = () => {
     const renderLane = (owner, slotsEls) => {
       slotsEls.forEach((slotEl,i)=>{
@@ -249,7 +242,7 @@
         const c = state[owner].slots[i];
         if (c){
           const view = cardHTML(c, {inSlot:true});
-          // Zoom en cartas del tablero:
+          // En el tablero: click/tap = zoom
           view.addEventListener('click', ()=>showCardZoom(c));
           slotEl.appendChild(view);
         }
@@ -259,11 +252,12 @@
     renderLane('player', playerSlots);
   };
 
+  // --------- Mano del jugador ----------
   const refreshHandUI = () => {
     elPlayerHand.innerHTML = '';
     state.player.hand.forEach(c=>{
       const view = cardHTML(c);
-      // Pointer Events (drag + tap=zoom)
+      // pointerdown: tap=zoom, move=drag
       view.addEventListener('pointerdown', onPointerDownCard(c, view), { passive:false });
       elPlayerHand.appendChild(view);
     });
@@ -272,11 +266,9 @@
   // --------- Zoom ----------
   const showCardZoom = (card) => {
     zoomCard.innerHTML = `
-      <div class="title">${card.label}</div>
-      <img src="${card.image}" alt="${card.label}">
+      <img src="${card.image}" alt="${card.label || ''}">
       <div class="number">-${card.value}</div>
-      <div class="tag" style="text-align:center;opacity:.95;margin-top:auto;">${card.info}</div>
-      <div style="display:flex;gap:8px;justify-content:center;margin-top:12px;">
+      <div style="position:absolute;bottom:16px;left:0;right:0;display:flex;justify-content:center;z-index:2;">
         <button class="btn" id="zoomClose">Cerrar</button>
       </div>`;
     cardZoom.classList.remove('hidden');
