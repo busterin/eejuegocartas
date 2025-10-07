@@ -94,9 +94,9 @@
     const img = document.createElement('img');
     img.className = 'card-img';
     img.src = card.image;
-    img.alt = card.label;
+    img.alt = card.label || '';
 
-    // Solo número visible (el CSS oculta título/tag)
+    // Solo número (título/texto ocultos por diseño actual)
     const num = document.createElement('div');
     num.className = 'number';
     num.textContent = `-${card.value}`;
@@ -106,32 +106,34 @@
     return el;
   };
 
-  // ===== DRAG & DROP con Pointer Events =====
-  // Tap en mano = zoom; si se mueve tras pulsar = arrastre
+  // ===== DRAG & TAP-TO-ZOOM (robusto) =====
   const DRAG_THRESHOLD = 12; // px
   let drag = {
     active:false, moved:false,
     id:null, card:null, originEl:null,
     startX:0, startY:0, startRect:null,
-    ghost:null
+    ghost:null, pointerId:null
   };
+  let suppressNextClick = false;
+  let justDragged = false;
 
   const onPointerDownCard = (cardObj, cardEl) => (e) => {
     if (state.current !== 'player') return;
+
+    // Evita gestos nativos y asegura eventos posteriores
     e.preventDefault();
+    try { e.target.setPointerCapture?.(e.pointerId); } catch {}
 
     drag.active = true; drag.moved = false;
     drag.id = cardObj.id; drag.card = cardObj; drag.originEl = cardEl;
+    drag.pointerId = e.pointerId;
     drag.startX = e.clientX; drag.startY = e.clientY;
     drag.startRect = cardEl.getBoundingClientRect();
 
-    // ❌ Ya no iluminamos huecos aquí
-    // (ni en ningún momento: elimina el efecto por completo)
-
-    // Listeners en document para robustez móvil
-    document.addEventListener('pointermove', onPointerMove);
-    document.addEventListener('pointerup', onPointerUp, { once:true });
-    document.addEventListener('pointercancel', onPointerCancel, { once:true });
+    // Escucha global para no perder pointerup en móviles
+    window.addEventListener('pointermove', onPointerMove, { passive:false });
+    window.addEventListener('pointerup', onPointerUp, { once:true });
+    window.addEventListener('pointercancel', onPointerCancel, { once:true });
   };
 
   const onPointerMove = (e) => {
@@ -139,19 +141,22 @@
     const dx = e.clientX - drag.startX;
     const dy = e.clientY - drag.startY;
 
-    // Hasta superar el umbral, seguimos “tap” (permitirá zoom)
     if (!drag.moved) {
       if (Math.hypot(dx, dy) <= DRAG_THRESHOLD) return;
 
-      // Desde aquí SÍ es arrastre: creamos ghost y ocultamos original
+      // Se convierte en arrastre: crear ghost y ocultar original
       drag.moved = true;
 
       const g = drag.originEl.cloneNode(true);
       g.classList.add('fly');
       Object.assign(g.style, {
-        left:`${drag.startRect.left}px`, top:`${drag.startRect.top}px`,
-        width:`${drag.startRect.width}px`, height:`${drag.startRect.height}px`,
-        transform:`translate(0,0)`, opacity:'0.95', transition:'none'
+        left:`${drag.startRect.left}px`,
+        top:`${drag.startRect.top}px`,
+        width:`${drag.startRect.width}px`,
+        height:`${drag.startRect.height}px`,
+        transform:`translate(0,0)`,
+        opacity:'0.95',
+        transition:'none'
       });
       document.body.appendChild(g);
       drag.ghost = g;
@@ -186,23 +191,24 @@
   const cleanupDrag = () => {
     if (drag.originEl) drag.originEl.style.visibility = '';
     if (drag.ghost) { try{ drag.ghost.remove(); }catch{} }
-    // Ya no añadimos ni quitamos clases de “own-target”
-    document.removeEventListener('pointermove', onPointerMove);
-    document.removeEventListener('pointercancel', onPointerCancel);
-    drag = { active:false, moved:false, id:null, card:null, originEl:null, startX:0, startY:0, startRect:null, ghost:null };
+    window.removeEventListener('pointermove', onPointerMove);
+    window.removeEventListener('pointercancel', onPointerCancel);
+    drag = { active:false, moved:false, id:null, card:null, originEl:null, startX:0, startY:0, startRect:null, ghost:null, pointerId:null };
   };
 
   const onPointerUp = (e) => {
     if (!drag.active) return;
 
-    // TAP sin mover ⇒ ZOOM (en la mano)
+    // TAP sin mover ⇒ ZOOM
     if (!drag.moved) {
+      suppressNextClick = true; // evita doble apertura por click sintético
+      setTimeout(()=> suppressNextClick = false, 0);
       cleanupDrag();
       showCardZoom(drag.card);
       return;
     }
 
-    // Si hubo arrastre: intentar colocar en slot del jugador
+    // Arrastre: intentar soltar en slot jugador
     const dropEl = document.elementFromPoint(e.clientX, e.clientY);
     const slot = dropEl?.closest?.('.lane-player .slot');
 
@@ -219,14 +225,18 @@
           if (state.player.pollution === 0) { cleanupDrag(); endGame('win','¡Llegaste a 0 de contaminación!'); return; }
           refreshHandUI();
           cleanupDrag();
+          justDragged = true; setTimeout(()=>justDragged=false, 50);
           nextTurn();
         } else {
           cleanupDrag();
         }
       });
     } else {
-      // Fuera: volver a origen
-      animateGhostBack(() => cleanupDrag());
+      // Soltó fuera: volver
+      animateGhostBack(() => {
+        cleanupDrag();
+        justDragged = true; setTimeout(()=>justDragged=false, 50);
+      });
     }
   };
 
@@ -257,8 +267,16 @@
     elPlayerHand.innerHTML = '';
     state.player.hand.forEach(c=>{
       const view = cardHTML(c);
+
       // pointerdown: tap=zoom, move=drag
       view.addEventListener('pointerdown', onPointerDownCard(c, view), { passive:false });
+
+      // Fallback por si algún navegador suprime pointerup/click raro
+      view.addEventListener('click', (ev)=>{
+        if (justDragged || suppressNextClick) return; // evita doble o click tras drag
+        showCardZoom(c);
+      });
+
       elPlayerHand.appendChild(view);
     });
   };
