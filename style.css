@@ -18,12 +18,12 @@
   --radius: 14px;
 }
 
-/* ===== Pantalla estable (sin scroll/“rebote”) ===== */
+/* ===== Pantalla estable ===== */
 *{box-sizing:border-box}
 html,body{
-  height:100dvh;                 /* viewport real en móviles */
-  overflow:hidden;               /* sin scroll */
-  overscroll-behavior: none;     /* sin “rebote” */
+  height:100dvh;
+  overflow:hidden;
+  overscroll-behavior:none;
 }
 body{
   margin:0;
@@ -33,8 +33,6 @@ body{
     radial-gradient(1200px 600px at 50% -200px, #1d4d33 0%, transparent 60%),
     linear-gradient(180deg, var(--bg), #0b1410 60%, #080f0b);
 }
-
-/* Evita gestos nativos durante el drag */
 .board, .lane, .slot, .hand, .card, .zoom{ touch-action:none; }
 img{ -webkit-user-drag:none; user-select:none; -webkit-user-select:none }
 
@@ -90,12 +88,10 @@ img{ -webkit-user-drag:none; user-select:none; -webkit-user-select:none }
   box-shadow:var(--shadow);
   border:1px solid rgba(255,255,255,.06);
 }
-
 .lane{
   display:grid; grid-template-columns: repeat(5, 1fr);
   gap: var(--gap); padding: var(--gap);
 }
-
 .slot{
   position:relative; height: var(--slot-h); border-radius:var(--radius);
   background:linear-gradient(180deg, rgba(255,255,255,.06), transparent 40%),
@@ -108,54 +104,63 @@ img{ -webkit-user-drag:none; user-select:none; -webkit-user-select:none }
 .slot.flash{animation:slotFlash 420ms ease}
 @keyframes slotFlash{0%{box-shadow:0 0 0 0 rgba(123,228,149,0)}40%{box-shadow:0 0 18px 6px rgba(123,228,149,.45)}100%{box-shadow:0 0 0 0 rgba(123,228,149,0)}}
 
-/* --- carta --- */
+/* --- CARTA --- */
 .card{
-  position:relative; background:var(--card); border:2px solid var(--card-edge);
-  color:var(--ink); width: var(--card-w); height: var(--card-h);
-  border-radius:var(--radius); box-shadow:var(--shadow); cursor:pointer;
-  outline:3px solid transparent; user-select:none;
-  transition:transform .12s, box-shadow .12s, outline-color .12s;
-  display:flex; overflow:hidden;
+  position:relative; 
+  background:var(--card);
+  border:4px solid var(--card-edge); 
+  color:var(--ink); 
+  width: var(--card-w); 
+  height: var(--card-h);
+  border-radius:var(--radius); 
+  box-shadow:var(--shadow); 
+  cursor:pointer;
+  overflow:hidden;
+  display:flex;
+  transition:transform .12s, box-shadow .12s;
 }
 .card:hover{transform:translateY(-4px)}
 .card.selected{outline-color:var(--accent);transform:translateY(-6px)}
 
 .card-inner{
   position:relative; display:flex; flex-direction:column; justify-content:space-between;
-  padding: clamp(8px, 1.2vw, 10px); width:100%; height:100%;
+  width:100%; height:100%;
 }
 
-/* imagen centrada y contenida */
+/* === Imagen ocupa toda la carta === */
 .card-img{
-  position:absolute; inset: clamp(8px, 1.2vw, 10px);
-  width:auto;height:auto;
-  max-width: calc(100% - clamp(16px, 2.4vw, 20px));
-  max-height: calc(100% - clamp(16px, 2.4vw, 20px));
-  object-fit: contain !important;
-  object-position: center center !important;
-  border-radius:8px; z-index:1; pointer-events:none;
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  object-position:center center;
+  border-radius:calc(var(--radius) - 2px);
+  z-index:1;
+  pointer-events:none;
 }
 
-/* velo para legibilidad */
+/* velo */
 .card.has-image::after{
-  content:""; position:absolute; inset:0; z-index:1;
-  border-radius:var(--radius);
+  content:""; 
+  position:absolute;
+  inset:0;
+  z-index:2;
+  border-radius:calc(var(--radius) - 2px);
   background:linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.35));
   pointer-events:none;
 }
 
-/* textos por encima */
-.card .title,.card .number,.card .tag{ position:relative; z-index:2; }
+/* textos sobre la imagen */
+.card .title,.card .number,.card .tag{ position:relative; z-index:3; }
 
-/* === Título centrado con espacio reservado para el número === */
+/* título centrado con espacio a la derecha */
 .card .title{
   font-weight:700; font-size: clamp(.9rem, 2.1vw, 1rem);
   text-align:center;
-  padding-right: clamp(28px, 8vw, 44px); /* espacio para no chocar con el número */
-  padding-left: .4em;
+  padding-right: clamp(28px, 8vw, 44px);
+  padding-left:.4em;
 }
-
-/* Número arriba a la derecha */
 .card .number{
   position:absolute;
   top: clamp(6px, 1.2vw, 10px);
@@ -163,11 +168,9 @@ img{ -webkit-user-drag:none; user-select:none; -webkit-user-select:none }
   font-size: clamp(1rem, 2.6vw, 1.4rem);
   font-weight:900; line-height:1;
   background:rgba(0,0,0,.35);
-  padding: 4px 8px; border-radius:8px;
+  padding:4px 8px; border-radius:8px;
   font-variant-numeric: tabular-nums;
 }
-
-/* etiqueta inferior */
 .card .tag{
   font-size: clamp(.7rem, 1.8vw, .8rem);
   opacity:.95; text-align:center;
@@ -177,76 +180,103 @@ img{ -webkit-user-drag:none; user-select:none; -webkit-user-select:none }
 
 /* carta en hueco */
 .card.in-slot{
-  width:100%; height:100%; border-radius: calc(var(--radius) - 2px);
+  width:100%; height:100%;
   animation: dropBounce 240ms ease;
 }
-.card.in-slot .card-inner{ padding: clamp(6px, 1vw, 8px) }
-@keyframes dropBounce{ 0%{transform:scale(.9)} 55%{transform:scale(1.02)} 100%{transform:scale(1)} }
-.card.in-slot .number{ font-size: clamp(1rem, 2.4vw, 1.6rem) }
-
-/* clon / ghost mientras arrastras */
+@keyframes dropBounce{0%{transform:scale(.9)}55%{transform:scale(1.02)}100%{transform:scale(1)}}
+.card.in-slot .number{font-size:clamp(1rem, 2.4vw, 1.6rem)}
 .card.fly{
   position:fixed; pointer-events:none; z-index:1000;
-  will-change: transform; transition: none;
+  will-change:transform; transition:none;
 }
 
-/* mano */
-.hand-wrap{max-width:min(1100px, 98vw); margin:0 auto clamp(14px, 3vh, 28px); padding: 0 clamp(10px, 2.6vw, 24px)}
-.hand-title{margin: 6px 0; font-size: clamp(.9rem, 2vw, 1rem); opacity:.85}
-.hand{display:flex;flex-wrap:wrap;gap: clamp(8px, 1.6vw, 12px); min-height: calc(var(--card-h) + 16px)}
-.turn-indicator{margin-top:6px;opacity:.85; font-size: clamp(.9rem, 2vw, 1rem)}
+/* --- MANO --- */
+.hand-wrap{
+  max-width:min(1100px, 98vw); 
+  margin:0 auto clamp(14px, 3vh, 28px); 
+  padding:0 clamp(10px, 2.6vw, 24px)
+}
+.hand-title{margin:6px 0;font-size:clamp(.9rem,2vw,1rem);opacity:.85}
+.hand{display:flex;flex-wrap:wrap;gap:clamp(8px,1.6vw,12px);min-height:calc(var(--card-h)+16px)}
+.turn-indicator{margin-top:6px;opacity:.85;font-size:clamp(.9rem,2vw,1rem)}
 
-/* overlay final */
-.overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);display:grid;place-items:center;z-index:30}
+/* --- OVERLAY FINAL --- */
+.overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,.6);
+  display:grid;place-items:center;z-index:30
+}
 .overlay.hidden{display:none}
-.overlay-card{background:#11281b;border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:22px;width:min(90vw,420px);text-align:center;box-shadow:var(--shadow)}
+.overlay-card{
+  background:#11281b;border:1px solid rgba(255,255,255,.08);
+  border-radius:16px;padding:22px;width:min(90vw,420px);
+  text-align:center;box-shadow:var(--shadow)
+}
 .overlay-card h2{margin:0 0 8px}
 .overlay-card p{margin:0 0 16px;opacity:.9}
-.btn{background:var(--accent);color:#042312;font-weight:800;border:none;border-radius:12px;padding:10px 14px;cursor:pointer;box-shadow:var(--shadow);font-size:clamp(.9rem, 2vw, 1rem)}
+.btn{
+  background:var(--accent);color:#042312;font-weight:800;
+  border:none;border-radius:12px;padding:10px 14px;
+  cursor:pointer;box-shadow:var(--shadow);
+  font-size:clamp(.9rem,2vw,1rem)
+}
 .btn:hover{filter:brightness(1.05)}
 
 /* --- ZOOM DE CARTA --- */
 .zoom{
-  position:fixed;inset:0; display:grid;place-items:center;
-  background:rgba(0,0,0,.55); z-index:25;
+  position:fixed;inset:0;
+  display:grid;place-items:center;
+  background:rgba(0,0,0,.55);z-index:25;
 }
 .zoom.hidden{display:none}
 .zoom-card{
-  width:min(90vw,420px); height:min(92vh,540px);
-  border-radius:20px; padding:16px; background:var(--card);
-  border:2px solid var(--card-edge); box-shadow:var(--shadow);
-  display:flex; flex-direction:column; justify-content:space-between;
-  animation:zoomIn 160ms ease; position:relative; overflow:hidden;
+  width:min(90vw,420px);
+  height:min(92vh,540px);
+  border-radius:20px;
+  padding:16px;
+  background:var(--card);
+  border:4px solid var(--card-edge);
+  box-shadow:var(--shadow);
+  display:flex;flex-direction:column;justify-content:space-between;
+  animation:zoomIn 160ms ease;
+  position:relative;
+  overflow:hidden;
 }
 .zoom-card img{
-  position:absolute; inset:16px;
-  width:auto;height:auto; max-width:calc(100% - 32px); max-height:calc(100% - 32px);
-  object-fit:contain !important; object-position:center center !important;
-  border-radius:12px; z-index:1; pointer-events:none;
+  position:absolute;inset:0;
+  width:100%;height:100%;
+  object-fit:cover;
+  object-position:center center;
+  border-radius:calc(20px - 2px);
+  z-index:1;pointer-events:none;
 }
 .zoom-card::after{
-  content:""; position:absolute;inset:0;z-index:1; border-radius:20px;
+  content:"";position:absolute;inset:0;z-index:1;
+  border-radius:20px;
   background:linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.35));
 }
-.zoom-card .title,.zoom-card .number,.zoom-card .tag,.zoom-card .btn{ position:relative; z-index:2; }
+.zoom-card .title,.zoom-card .number,.zoom-card .tag,.zoom-card .btn{
+  position:relative;z-index:2;
+}
 .zoom-card .title{
-  font-weight:800; font-size: clamp(1rem, 2.4vw, 1.2rem); text-align:center;
-  padding-right: clamp(34px, 9vw, 56px); /* reserva mayor en zoom */
+  font-weight:800;font-size:clamp(1rem,2.4vw,1.2rem);
+  text-align:center;padding-right:clamp(34px,9vw,56px);
 }
 .zoom-card .number{
-  position:absolute; top:16px; right:16px;
-  font-size: clamp(1.6rem, 4vw, 2rem);
-  background:rgba(0,0,0,.35); padding:6px 10px; border-radius:10px; line-height:1; font-weight:900;
+  position:absolute;top:16px;right:16px;
+  font-size:clamp(1.6rem,4vw,2rem);
+  background:rgba(0,0,0,.35);
+  padding:6px 10px;border-radius:10px;
+  line-height:1;font-weight:900;
 }
-@keyframes zoomIn{ from{transform:scale(.9);opacity:0} to{transform:scale(1);opacity:1} }
+@keyframes zoomIn{from{transform:scale(.9);opacity:0}to{transform:scale(1);opacity:1}}
 
-/* --- Ajustes responsive --- */
-@media (max-width: 880px){
-  :root{ --card-w: min(clamp(80px, 24vw, 110px), clamp(80px, 28vh, 110px)); }
-  .lane{ gap: clamp(6px, 2vw, 12px); padding: clamp(6px, 2vw, 12px) }
+/* --- RESPONSIVE --- */
+@media(max-width:880px){
+  :root{--card-w:min(clamp(80px,24vw,110px),clamp(80px,28vh,110px));}
+  .lane{gap:clamp(6px,2vw,12px);padding:clamp(6px,2vw,12px)}
 }
-@media (max-height: 420px){
-  :root{ --card-w: min(84px, 16vw) }
-  .topbar{ padding:6px 10px }
-  .rule{ display:none }
+@media(max-height:420px){
+  :root{--card-w:min(84px,16vw)}
+  .topbar{padding:6px 10px}
+  .rule{display:none}
 }
