@@ -6,18 +6,23 @@
   const MATCH_TIME = 5 * 60; // 5 minutos
   const SLOTS = 5;
 
+  // Helper de paths
+  const SOL_IMG = "assets/Carta1.png";         // SOL
+  const PANELES_IMG = "assets/Carta2.png";     // PANELES SOLARES
+
   // --------- Mazo base con imágenes ---------
+  // Ajustamos nombres para que coincidan con la mecánica nueva (el título no se muestra en UI)
   const baseDeck = [
-    { label: "Acción Verde", info: "Reduce la contaminación", value: 2, image: "assets/Carta1.png" },
-    { label: "Reciclaje", info: "Recoge residuos y reduce el impacto", value: 3, image: "assets/Carta2.png" },
-    { label: "Energía Solar", info: "Paneles solares instalados", value: 4, image: "assets/Carta3.png" },
-    { label: "Reforestación", info: "Plantas nuevos bosques", value: 5, image: "assets/Carta4.png" },
-    { label: "Transporte Limpio", info: "Usa movilidad eléctrica", value: 6, image: "assets/Carta5.png" },
-    { label: "Agua Pura", info: "Purificación y control de vertidos", value: 3, image: "assets/Carta6.png" },
-    { label: "Protección Animal", info: "Cuidado de la fauna silvestre", value: 4, image: "assets/Carta7.png" },
-    { label: "Agricultura Sostenible", info: "Reduce pesticidas", value: 5, image: "assets/Carta8.png" },
-    { label: "Educación Ambiental", info: "Campañas de concienciación", value: 2, image: "assets/Carta9.png" },
-    { label: "Energía Eólica", info: "Molinos de viento eficientes", value: 6, image: "assets/Carta10.png" },
+    { label: "Sol",               info: "", value: 2, image: SOL_IMG },
+    { label: "Paneles Solares",   info: "", value: 3, image: PANELES_IMG },
+    { label: "Energía Solar",     info: "", value: 4, image: "assets/Carta3.png" },
+    { label: "Reforestación",     info: "", value: 5, image: "assets/Carta4.png" },
+    { label: "Transporte Limpio", info: "", value: 6, image: "assets/Carta5.png" },
+    { label: "Agua Pura",         info: "", value: 3, image: "assets/Carta6.png" },
+    { label: "Protección Animal", info: "", value: 4, image: "assets/Carta7.png" },
+    { label: "Agricultura",       info: "", value: 5, image: "assets/Carta8.png" },
+    { label: "Educación",         info: "", value: 2, image: "assets/Carta9.png" },
+    { label: "Energía Eólica",    info: "", value: 6, image: "assets/Carta10.png" },
   ];
 
   // --------- Estado ----------
@@ -51,6 +56,8 @@
   // --------- Utilidades ----------
   const randInt = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
   const timeFmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+
   const randFromDeck = () => {
     const c = structuredClone(baseDeck[randInt(0, baseDeck.length-1)]);
     c.id = `c-${Math.random().toString(36).slice(2,8)}`;
@@ -96,7 +103,7 @@
     img.src = card.image;
     img.alt = card.label || '';
 
-    // Solo número (título/texto ocultos por diseño actual)
+    // Solo número visible (el CSS ya oculta título/tag)
     const num = document.createElement('div');
     num.className = 'number';
     num.textContent = `-${card.value}`;
@@ -120,7 +127,6 @@
   const onPointerDownCard = (cardObj, cardEl) => (e) => {
     if (state.current !== 'player') return;
 
-    // Evita gestos nativos y asegura eventos posteriores
     e.preventDefault();
     try { e.target.setPointerCapture?.(e.pointerId); } catch {}
 
@@ -130,7 +136,6 @@
     drag.startX = e.clientX; drag.startY = e.clientY;
     drag.startRect = cardEl.getBoundingClientRect();
 
-    // Escucha global para no perder pointerup en móviles
     window.addEventListener('pointermove', onPointerMove, { passive:false });
     window.addEventListener('pointerup', onPointerUp, { once:true });
     window.addEventListener('pointercancel', onPointerCancel, { once:true });
@@ -201,7 +206,7 @@
 
     // TAP sin mover ⇒ ZOOM
     if (!drag.moved) {
-      suppressNextClick = true; // evita doble apertura por click sintético
+      suppressNextClick = true;
       setTimeout(()=> suppressNextClick = false, 0);
       cleanupDrag();
       showCardZoom(drag.card);
@@ -221,7 +226,12 @@
           state.player.slots[slotIdx] = card;
           renderSlots();
           flashSlot(slot);
+
+          // Aplica el efecto normal (-value al propio contador)
           applyEffect('player', card);
+          // Aplica efectos especiales (Paneles Solares -> limpia Sol del rival)
+          applySpecialEffects('player', card);
+
           if (state.player.pollution === 0) { cleanupDrag(); endGame('win','¡Llegaste a 0 de contaminación!'); return; }
           refreshHandUI();
           cleanupDrag();
@@ -267,16 +277,13 @@
     elPlayerHand.innerHTML = '';
     state.player.hand.forEach(c=>{
       const view = cardHTML(c);
-
       // pointerdown: tap=zoom, move=drag
       view.addEventListener('pointerdown', onPointerDownCard(c, view), { passive:false });
-
-      // Fallback por si algún navegador suprime pointerup/click raro
+      // Fallback de click (por si el navegador genera click sin pointerup)
       view.addEventListener('click', (ev)=>{
-        if (justDragged || suppressNextClick) return; // evita doble o click tras drag
+        if (justDragged || suppressNextClick) return;
         showCardZoom(c);
       });
-
       elPlayerHand.appendChild(view);
     });
   };
@@ -295,11 +302,42 @@
   };
   const hideCardZoom = ()=> cardZoom.classList.add('hidden');
 
-  // --------- Juego ---------
+  // --------- Juego: efectos básicos y especiales ---------
   const flashSlot = slot => { slot.classList.remove('flash'); void slot.offsetWidth; slot.classList.add('flash'); };
+
+  // Efecto básico: reducir contaminación del propio jugador que juega la carta
   const applyEffect = (who, card) => {
     state[who].pollution = Math.max(0, state[who].pollution - card.value);
     updatePollutionUI(); pulse(who);
+  };
+
+  // Efectos especiales (Paneles Solares -> limpia Sol del rival y restaura su contaminación)
+  const applySpecialEffects = (whoPlayed, card) => {
+    // ¿Es "Paneles Solares"?
+    if (!card?.image || !card.image.endsWith("Carta2.png")) return;
+
+    const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
+    const opponentSlots = state[opponent].slots;
+    let restored = 0;
+    const slotsEls = opponent === 'enemy' ? enemySlots : playerSlots;
+
+    // Buscar todas las cartas "Sol" (Carta1.png) del rival
+    opponentSlots.forEach((c, i) => {
+      if (c && c.image && c.image.endsWith("Carta1.png")) {
+        restored += c.value;               // cantidad que devolvemos al rival
+        opponentSlots[i] = null;           // desaparecen del tablero
+        // pequeño flash de slot para feedback
+        slotsEls[i]?.classList.add('flash');
+        setTimeout(()=> slotsEls[i]?.classList.remove('flash'), 320);
+      }
+    });
+
+    if (restored > 0) {
+      // Devolver contaminación al rival (clamp para no superar el máximo inicial)
+      state[opponent].pollution = clamp(state[opponent].pollution + restored, 0, START_POLLUTION);
+      updatePollutionUI(); pulse(opponent);
+      renderSlots();
+    }
   };
 
   // --------- Turnos ---------
@@ -313,11 +351,30 @@
 
   const enemyPlays = () => {
     const h = state.enemy.hand; if (!h.length) return nextTurn();
-    let best=0; for (let i=1;i<h.length;i++) if (h[i].value>h[best].value) best=i;
-    const card = h.splice(best,1)[0];
+
+    // Sencilla “IA”: si tiene Paneles Solares y te puede quitar algún "Sol", priorízala
+    const idxPaneles = h.findIndex(c => c.image === PANELES_IMG);
+    const playerHasSolOnBoard = state.player.slots.some(c => c && c.image === SOL_IMG);
+
+    let playIndex = 0;
+    if (idxPaneles !== -1 && playerHasSolOnBoard) {
+      playIndex = idxPaneles;
+    } else {
+      // si no, juega la carta de mayor valor
+      for (let i=1;i<h.length;i++) if (h[i].value>h[playIndex].value) playIndex=i;
+    }
+
+    const card = h.splice(playIndex,1)[0];
+    // Elegir hueco: si no hay libres, sustituir el de menor valor
     let idx = state.enemy.slots.findIndex(s=>!s);
     if (idx === -1){ let min=Infinity, at=0; state.enemy.slots.forEach((c,i)=>{if(c.value<min){min=c.value;at=i}}); idx=at; }
-    state.enemy.slots[idx]=card; flashSlot(enemySlots[idx]); renderSlots(); applyEffect('enemy',card);
+
+    state.enemy.slots[idx]=card; flashSlot(enemySlots[idx]); renderSlots();
+
+    // Efectos
+    applyEffect('enemy',card);
+    applySpecialEffects('enemy', card);
+
     if (state.enemy.pollution === 0) return endGame('lose','El rival llegó a 0.');
     nextTurn();
   };
