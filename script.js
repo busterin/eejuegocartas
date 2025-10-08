@@ -17,13 +17,13 @@
 
   // --------- Mazo base: 7 cartas ---------
   const baseDeck = [
-    { label: "Sol",               value: 8, image: "assets/Carta1.png" },
-    { label: "Paneles Solares",   value: 6, image: "assets/Carta2.png" },
-    { label: "Luces Apagadas",    value: 4, image: "assets/Carta3.png" },
-    { label: "Reciclaje",         value: 0, image: "assets/Carta4.png" },
-    { label: "Plantar",           value: 0, image: "assets/Carta5.png" },
-    { label: "Agua",              value: 2, image: "assets/Carta6.png" },
-    { label: "Cambio",            value: 0, image: "assets/Carta7.png" },
+    { label: "Sol",               value: 8, image: SOL_IMG },
+    { label: "Paneles Solares",   value: 6, image: PANELES_IMG },
+    { label: "Luces Apagadas",    value: 4, image: LUCES_IMG },
+    { label: "Reciclaje",         value: 0, image: RECICLAJE_IMG },
+    { label: "Plantar",           value: 0, image: PLANTAR_IMG },
+    { label: "Agua",              value: 2, image: AGUA_IMG },
+    { label: "Cambio",            value: 0, image: CAMBIO_IMG },
   ];
 
   // --------- Estado ----------
@@ -56,9 +56,13 @@
   const playerSlots = Array.from(document.querySelectorAll('.lane-player .slot'));
   const enemySlots  = Array.from(document.querySelectorAll('.lane-enemy .slot'));
 
-  // === Portada (añadido) ===
+  // === Portada + Modal "Cómo jugar" ===
   const startScreen = $('startScreen');
   const playBtn     = $('playBtn');
+  const howBtn      = $('howBtn');
+  const howModal    = $('howModal');
+  const howClose    = $('howClose');
+  const howOkBtn    = $('howOkBtn');
 
   // --------- Utilidades ----------
   const randInt = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
@@ -114,7 +118,7 @@
     if (!amount) return;
     const bubble = who === 'player' ? elPlayerBubble : elEnemyBubble;
     const span = document.createElement('div');
-    span.textContent = `-${amount}`;
+    span.textContent = (amount > 0 ? '-' : '+') + Math.abs(amount);
     Object.assign(span.style, {
       position:'absolute',
       left:'50%',
@@ -463,10 +467,10 @@
       if (removedCount > 0) {
         triggerSolarSweep(opponent);
         const before = state[opponent].pollution;
-        state[opponent].pollution = Math.max(0, Math.min(START_POLLUTION, state[opponent].pollution + restored));
+        state[opponent].pollution = clamp(before + restored, 0, START_POLLUTION);
         updatePollutionUI(); pulse(opponent);
-        // Mostrar "+X" sobre el rival para claridad del retorno
-        showDamage(opponent, -Math.max(0, state[opponent].pollution - before)); // negativo para que no aparezca como resta
+        // mostrar "+X" (usamos amount negativo para que se pinte con '+')
+        showDamage(opponent, -Math.max(0, state[opponent].pollution - before));
         renderSlots();
         const whoTxt = opponent === 'enemy' ? 'Rival' : 'Jugador';
         createToast(`Paneles Solares elimina ${removedCount} Sol · +${restored} contaminación para ${whoTxt}`);
@@ -494,7 +498,7 @@
       renderSlots();
       createToast(`RECICLAJE → se transforma`);
 
-      // Calcular base que se aplicará (por si AGUA está activo)
+      // Previsualizar pop del daño base (si AGUA estaba activo, será doble)
       const mult = state.doubleNext[whoPlayed] ? 2 : 1;
       const base = (newCard.value || 0) * mult;
       if (base) showDamage(whoPlayed, base);
@@ -526,7 +530,7 @@
       createToast(`AGUA: tu próxima carta resta el doble`);
     }
 
-    // CAMBIO => intercambia con la carta del rival enfrente (mismo índice)
+    // CAMBIO => intercambia con la carta del rival enfrente (mismo índice) y aplica el valor base de las recibidas
     if (card.image === CAMBIO_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
       if (typeof slotIdx === 'number') {
@@ -659,19 +663,28 @@
     });
   }
 
-  // Reiniciar desde overlay
+  // === Modal "Cómo jugar" ===
+  const openHow = () => { howModal.classList.remove('hidden'); };
+  const closeHow = () => { howModal.classList.add('hidden'); };
+  if (howBtn) howBtn.addEventListener('click', openHow);
+  if (howClose) howClose.addEventListener('click', closeHow);
+  if (howOkBtn) howOkBtn.addEventListener('click', closeHow);
+  if (howModal) {
+    howModal.addEventListener('click', (e)=>{
+      if (e.target === howModal) closeHow();
+    });
+    document.addEventListener('keydown', (e)=>{
+      if (!howModal.classList.contains('hidden') && e.key === 'Escape') closeHow();
+    });
+  }
+
+  // Reiniciar desde overlay → volver a portada
   restartBtn.addEventListener('click', () => {
-  // Cerrar overlays por si alguno quedó abierto
-  cardZoom.classList.add('hidden');
-  overlay.classList.add('hidden');
-
-  // Mostrar la portada
-  const startScreen = document.getElementById('startScreen');
-  if (startScreen) startScreen.classList.remove('hidden');
-
-  // Asegurar que no quede ningún temporizador activo
-  if (state.intervalId) { clearInterval(state.intervalId); state.intervalId = null; }
-});
+    cardZoom.classList.add('hidden');
+    overlay.classList.add('hidden');
+    if (state.intervalId) { clearInterval(state.intervalId); state.intervalId = null; }
+    startScreen.classList.remove('hidden');
+  });
 
   // Nota: NO llamamos a start() automáticamente: se inicia desde la portada.
 })();
