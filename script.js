@@ -73,6 +73,16 @@
     return proto;
   };
 
+  // === Imagen de tablero: usar ...tablero.png sólo en la miniatura de mesa ===
+  const boardThumb = (imgPath) => {
+    // Si termina en .png, reemplaza por tablero.png (p.ej. Carta5.png -> Carta5tablero.png)
+    if (typeof imgPath === 'string' && imgPath.endsWith('.png')) {
+      const base = imgPath.slice(0, -4);
+      return `${base}tablero.png`;
+    }
+    return imgPath;
+  };
+
   // --------- Toaster ----------
   let toastContainer;
   const ensureToastContainer = () => {
@@ -132,7 +142,8 @@
 
     const img = document.createElement('img');
     img.className = 'card-img';
-    img.src = card.image;
+    // Mano/zoom usan imagen normal; tablero usa miniatura específica
+    img.src = inSlot ? boardThumb(card.image) : card.image;
     img.alt = card.label || '';
 
     const num = document.createElement('div');
@@ -291,7 +302,7 @@
         const c = state[owner].slots[i];
         if (c){
           const view = cardHTML(c, {inSlot:true});
-          // En el tablero: click/tap = zoom
+          // En el tablero: click/tap = zoom (zoom usa imagen original)
           view.addEventListener('click', ()=>showCardZoom(c));
           slotEl.appendChild(view);
         }
@@ -358,6 +369,23 @@
   const markSlotMorph = (slotEl) => {
     slotEl.classList.remove('morph'); void slotEl.offsetWidth; slotEl.classList.add('morph');
     setTimeout(()=> slotEl.classList.remove('morph'), 700);
+  };
+
+  // Nuevo: animación visual de CAMBIO
+  const markSwapSlots = (slotA, slotB) => {
+    if (slotA) { slotA.classList.remove('swap'); void slotA.offsetWidth; slotA.classList.add('swap'); }
+    if (slotB) { slotB.classList.remove('swap'); void slotB.offsetWidth; slotB.classList.add('swap'); }
+    // flip de la carta dentro del slot
+    const cardA = slotA?.querySelector('.card');
+    const cardB = slotB?.querySelector('.card');
+    if (cardA) { cardA.classList.remove('swap-flip'); void cardA.offsetWidth; cardA.classList.add('swap-flip'); }
+    if (cardB) { cardB.classList.remove('swap-flip'); void cardB.offsetWidth; cardB.classList.add('swap-flip'); }
+    setTimeout(()=>{
+      slotA?.classList.remove('swap');
+      slotB?.classList.remove('swap');
+      cardA?.classList.remove('swap-flip');
+      cardB?.classList.remove('swap-flip');
+    }, 700);
   };
 
   // --------- Juego: efectos básicos y especiales ---------
@@ -447,7 +475,6 @@
     // CAMBIO => intercambia con la carta del rival enfrente (mismo índice)
     if (card.image === CAMBIO_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
-      // Si el índice no se pasó (seguridad), no hacemos nada
       if (typeof slotIdx === 'number') {
         const mySlots = state[whoPlayed].slots;
         const oppSlots = state[opponent].slots;
@@ -457,11 +484,11 @@
         oppSlots[slotIdx] = tmp;
 
         renderSlots();
+
         const mySlotEl  = (whoPlayed === 'player' ? playerSlots : enemySlots)[slotIdx];
         const oppSlotEl = (opponent    === 'enemy' ? enemySlots  : playerSlots)[slotIdx];
-        if (mySlotEl)  { mySlotEl.classList.remove('flash'); void mySlotEl.offsetWidth; mySlotEl.classList.add('flash'); }
-        if (oppSlotEl) { oppSlotEl.classList.remove('flash'); void oppSlotEl.offsetWidth; oppSlotEl.classList.add('flash'); }
-        createToast(`CAMBIO: intercambio de cartas en el hueco ${slotIdx+1}`);
+        markSwapSlots(mySlotEl, oppSlotEl);
+        createToast(`CAMBIO: intercambio en el hueco ${slotIdx+1}`);
       }
     }
   };
