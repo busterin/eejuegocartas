@@ -6,10 +6,6 @@
   const MATCH_TIME = 5 * 60; // 5 minutos
   const SLOTS = 5;
 
-  // Tiempos de la secuencia del rival
-  const ENEMY_REVEAL_MS = 1200;  // tiempo mostrando la carta grande
-  const ENEMY_AFTER_PLACE_MS = 450; // espera tras colocar antes de efectos
-
   // Paths / Cartas clave
   const SOL_IMG       = "assets/Carta1.png"; // SOL
   const PANELES_IMG   = "assets/Carta2.png"; // PANELES SOLARES
@@ -34,6 +30,7 @@
     current: 'player',
     timer: MATCH_TIME,
     intervalId: null,
+    // Anula la siguiente carta que juegue cada bando
     nullifyNext: { player: false, enemy: false },
   };
 
@@ -251,6 +248,7 @@
           renderSlots();
           flashSlot(slot);
 
+          // ¿Está anulada la próxima carta del jugador?
           if (state.nullifyNext.player) {
             state.nullifyNext.player = false;
             triggerNullifySweep('player');
@@ -360,33 +358,6 @@
     setTimeout(()=> slotEl.classList.remove('morph'), 700);
   };
 
-  // --------- Reveal de jugada del rival ----------
-  let enemyRevealEl = null;
-  const ensureEnemyReveal = () => {
-    if (enemyRevealEl) return enemyRevealEl;
-    const div = document.createElement('div');
-    div.className = 'enemy-reveal hidden';
-    document.body.appendChild(div);
-    enemyRevealEl = div;
-    return enemyRevealEl;
-  };
-  const showEnemyReveal = (card) => {
-    const el = ensureEnemyReveal();
-    el.innerHTML = `
-      <div class="reveal-card">
-        <img src="${card.image}" alt="${card.label || ''}">
-        <div class="number">-${card.value}</div>
-      </div>`;
-    el.classList.remove('hidden');
-    // entrada animada
-    requestAnimationFrame(()=> el.classList.add('show'));
-  };
-  const hideEnemyReveal = () => {
-    if (!enemyRevealEl) return;
-    enemyRevealEl.classList.remove('show');
-    setTimeout(()=> enemyRevealEl.classList.add('hidden'), 180);
-  };
-
   // --------- Juego: efectos básicos y especiales ---------
   const applyEffect = (who, card) => {
     state[who].pollution = Math.max(0, state[who].pollution - card.value);
@@ -394,7 +365,7 @@
   };
 
   const applySpecialEffects = (whoPlayed, card, slotIdx) => {
-    // Paneles Solares => elimina SOL del rival y devuelve contaminación
+    // 1) Paneles Solares => elimina SOL del rival y devuelve contaminación
     if (card.image === PANELES_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
       const opponentSlots = state[opponent].slots;
@@ -427,7 +398,7 @@
       }
     }
 
-    // Luces Apagadas => anula la siguiente carta del rival
+    // 2) Luces Apagadas => anula la siguiente carta del rival
     if (card.image === LUCES_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
       state.nullifyNext[opponent] = true;
@@ -436,16 +407,20 @@
       createToast(`LUCES APAGADAS: la siguiente carta del ${whoTxt} no tendrá efecto`);
     }
 
-    // Reciclaje => se transforma en otra carta (no Carta4)
+    // 3) Reciclaje => se transforma automáticamente en otra carta (no Carta4)
     if (card.image === RECICLAJE_IMG) {
       const ownerSlots = state[whoPlayed].slots;
       const slotsEls = whoPlayed === 'player' ? playerSlots : enemySlots;
       const slotEl = slotsEls[slotIdx];
+      // Animación de transformación
       markSlotMorph(slotEl);
 
+      // Reemplazar carta por otra aleatoria distinta
       const newCard = randFromDeckExcept(RECICLAJE_IMG);
       ownerSlots[slotIdx] = newCard;
+      // Re-render del hueco concreto
       renderSlots();
+      // Un pequeño recordatorio visual
       createToast(`RECICLAJE → se transforma`);
     }
   };
@@ -455,14 +430,8 @@
     state.current = state.current==='player' ? 'enemy' : 'player';
     elTurnLabel.textContent = state.current==='player' ? 'Jugador' : 'Rival';
     banner(state.current==='player' ? 'Turno del Jugador' : 'Turno del Rival');
-
-    // Roba quien empieza el turno; si es jugador, mostramos preview
     draw(state.current, TURN_DRAW, state.current==='player');
-
-    // Pequeño respiro antes del rival
-    if (state.current==='enemy') {
-      setTimeout(enemyPlays, 650); // antes era 700 directo; ahora añadimos reveal interno
-    }
+    if (state.current==='enemy') setTimeout(enemyPlays, 700);
   };
 
   const enemyPlays = () => {
@@ -476,40 +445,30 @@
     if (idxPaneles !== -1 && playerHasSolOnBoard) {
       playIndex = idxPaneles;
     } else {
-      // si no, juega la carta de mayor valor (puede ser SOL)
+      // si no, juega la carta de mayor valor (permitimos SOL de nuevo)
       for (let i=1;i<h.length;i++) if (h[i].value>h[playIndex].value) playIndex=i;
     }
 
     const card = h.splice(playIndex,1)[0];
+    // Hueco enemigo: libre o sustituye el de menor valor
+    let idx = state.enemy.slots.findIndex(s=>!s);
+    if (idx === -1){ let min=Infinity, at=0; state.enemy.slots.forEach((c,i)=>{if(c.value<min){min=c.value;at=i}}); idx=at; }
 
-    // ==== REVEAL: mostrar carta grande antes de colocar ====
-    showEnemyReveal(card);
-    setTimeout(() => {
-      hideEnemyReveal();
+    state.enemy.slots[idx]=card; flashSlot(enemySlots[idx]); renderSlots();
 
-      // Elegir hueco enemigo: libre o sustituye el de menor valor
-      let idx = state.enemy.slots.findIndex(s=>!s);
-      if (idx === -1){ let min=Infinity, at=0; state.enemy.slots.forEach((c,i)=>{if(c.value<min){min=c.value;at=i}}); idx=at; }
+    // ¿Está anulada la próxima carta del rival (enemy)?
+    if (state.nullifyNext.enemy) {
+      state.nullifyNext.enemy = false;
+      triggerNullifySweep('enemy');
+      markSlotNullified(enemySlots[idx]);
+      createToast("Carta del Rival anulada por LUCES APAGADAS");
+    } else {
+      applyEffect('enemy',card);
+      applySpecialEffects('enemy', card, idx);
+    }
 
-      state.enemy.slots[idx]=card; flashSlot(enemySlots[idx]); renderSlots();
-
-      // Tras una breve pausa, aplicar efectos (para que se vea la carta colocada)
-      setTimeout(() => {
-        if (state.nullifyNext.enemy) {
-          state.nullifyNext.enemy = false;
-          triggerNullifySweep('enemy');
-          markSlotNullified(enemySlots[idx]);
-          createToast("Carta del Rival anulada por LUCES APAGADAS");
-        } else {
-          applyEffect('enemy',card);
-          applySpecialEffects('enemy', card, idx);
-        }
-
-        if (state.enemy.pollution === 0) return endGame('lose','El rival llegó a 0.');
-        nextTurn();
-      }, ENEMY_AFTER_PLACE_MS);
-
-    }, ENEMY_REVEAL_MS);
+    if (state.enemy.pollution === 0) return endGame('lose','El rival llegó a 0.');
+    nextTurn();
   };
 
   // --------- Fin / tiempo ---------
