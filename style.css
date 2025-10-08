@@ -397,3 +397,40 @@ img{-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
   font-size:clamp(1.3rem, 3.5vw, 1.8rem);
   color:#fff;
 }
+/* ====== Animación de intercambio (CAMBIO) ====== */
+.slot.swap{
+  position:relative;
+  animation: swapPulse 700ms ease;
+}
+@keyframes swapPulse{
+  0%{ box-shadow:0 0 0 0 rgba(120,210,255,0); transform:scale(1); }
+  35%{ box-shadow:0 0 22px 8px rgba(120,210,255,.45); transform:scale(1.04); }
+  100%{ box-shadow:0 0 0 0 rgba(120,210,255,0); transform:scale(1); }
+}
+
+/* Flip rápido de la carta al intercambiar */
+.card.swap-flip{
+  animation: swapFlip 520ms ease;
+  transform-style: preserve-3d;
+}
+@keyframes swapFlip{
+  0%{ transform: rotateY(0deg); }
+  40%{ transform: rotateY(90deg); }
+  60%{ transform: rotateY(90deg); }
+  100%{ transform: rotateY(0deg); }
+}
+
+/* Brillo diagonal cruzado en el slot durante el swap */
+.slot.swap::after{
+  content:"";
+  position:absolute; inset:-10%;
+  background: linear-gradient(120deg, rgba(255,255,255,0) 40%, rgba(170,230,255,.55) 50%, rgba(255,255,255,0) 60%);
+  transform: translateX(-120%) rotate(10deg);
+  filter: blur(4px);
+  animation: swapShine 700ms ease forwards;
+  pointer-events:none;
+  border-radius: inherit;
+}
+@keyframes swapShine{
+  to { transform: translateX(120%) rotate(10deg); }
+}
