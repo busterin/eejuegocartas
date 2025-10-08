@@ -15,16 +15,16 @@
   const AGUA_IMG      = "assets/Carta6.png"; // AGUA
   const CAMBIO_IMG    = "assets/Carta7.png"; // CAMBIO
 
-  // --------- Mazo base: 7 cartas ---------
-const baseDeck = [
-  { label: "Sol",               value: 8, image: "assets/Carta1.png" },
-  { label: "Paneles Solares",   value: 6, image: "assets/Carta2.png" },
-  { label: "Luces Apagadas",    value: 4, image: "assets/Carta3.png" },
-  { label: "Reciclaje",         value: 0, image: "assets/Carta4.png" },
-  { label: "Plantar",           value: 0, image: "assets/Carta5.png" },
-  { label: "Agua",              value: 2, image: "assets/Carta6.png" },
-  { label: "Cambio",            value: 0, image: "assets/Carta7.png" },
-];
+  // --------- Mazo base: valores fijos ---------
+  const baseDeck = [
+    { label: "Sol",               value: 8, image: SOL_IMG },
+    { label: "Paneles Solares",   value: 6, image: PANELES_IMG },
+    { label: "Luces Apagadas",    value: 4, image: LUCES_IMG },
+    { label: "Reciclaje",         value: 0, image: RECICLAJE_IMG },
+    { label: "Plantar",           value: 0, image: PLANTAR_IMG },
+    { label: "Agua",              value: 2, image: AGUA_IMG },
+    { label: "Cambio",            value: 0, image: CAMBIO_IMG },
+  ];
 
   // --------- Estado ----------
   const state = {
@@ -44,7 +44,7 @@ const baseDeck = [
   const elPlayerBubble    = $('playerBubble');
   const elEnemyBubble     = $('enemyBubble');
   const elPlayerHand      = $('playerHand');
-  const elTurnLabel       = $('turnLabel');
+  const elTurnLabel       = $('turnLabel'); // (no visible ahora, pero mantenido)
   const elTimer           = $('timer');
   const overlay           = $('overlay');
   const overlayTitle      = $('overlayTitle');
@@ -55,6 +55,10 @@ const baseDeck = [
   const zoomCard          = $('zoomCard');
   const playerSlots = Array.from(document.querySelectorAll('.lane-player .slot'));
   const enemySlots  = Array.from(document.querySelectorAll('.lane-enemy .slot'));
+
+  // Portada
+  const startScreen = document.getElementById('startScreen');
+  const playBtn     = document.getElementById('playBtn');
 
   // --------- Utilidades ----------
   const randInt = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
@@ -73,14 +77,14 @@ const baseDeck = [
     return proto;
   };
 
-  // === Imagen de tablero: usar ...tablero.png sólo en la miniatura de mesa ===
+  // Miniatura de tablero (solo cambia la imagen en el tablero)
   const boardThumb = (imgPath) => {
-    // Si termina en .png, reemplaza por tablero.png (p.ej. Carta5.png -> Carta5tablero.png)
     if (typeof imgPath === 'string' && imgPath.endsWith('.png')) {
       const base = imgPath.slice(0, -4);
       return `${base}tablero.png`;
     }
     return imgPath;
+    // Nota: si quieres fallback a la normal si no existe la miniatura, dímelo y lo añado.
   };
 
   // --------- Toaster ----------
@@ -142,7 +146,6 @@ const baseDeck = [
 
     const img = document.createElement('img');
     img.className = 'card-img';
-    // Mano/zoom usan imagen normal; tablero usa miniatura específica
     img.src = inSlot ? boardThumb(card.image) : card.image;
     img.alt = card.label || '';
 
@@ -155,7 +158,7 @@ const baseDeck = [
     return el;
   };
 
-  // ===== DRAG & TAP-TO-ZOOM (cross desktop/móvil) =====
+  // ===== DRAG & TAP-TO-ZOOM =====
   const DRAG_THRESHOLD = 12; // px
   let drag = {
     active:false, moved:false,
@@ -371,11 +374,10 @@ const baseDeck = [
     setTimeout(()=> slotEl.classList.remove('morph'), 700);
   };
 
-  // Nuevo: animación visual de CAMBIO
+  // CAMBIO: animación de intercambio
   const markSwapSlots = (slotA, slotB) => {
     if (slotA) { slotA.classList.remove('swap'); void slotA.offsetWidth; slotA.classList.add('swap'); }
     if (slotB) { slotB.classList.remove('swap'); void slotB.offsetWidth; slotB.classList.add('swap'); }
-    // flip de la carta dentro del slot
     const cardA = slotA?.querySelector('.card');
     const cardB = slotB?.querySelector('.card');
     if (cardA) { cardA.classList.remove('swap-flip'); void cardA.offsetWidth; cardA.classList.add('swap-flip'); }
@@ -496,7 +498,8 @@ const baseDeck = [
   // --------- Turnos ---------
   const nextTurn = () => {
     state.current = state.current==='player' ? 'enemy' : 'player';
-    elTurnLabel.textContent = state.current==='player' ? 'Jugador' : 'Rival';
+    // elTurnLabel (si lo usas en algún sitio)
+    if (elTurnLabel) elTurnLabel.textContent = state.current==='player' ? 'Jugador' : 'Rival';
     banner(state.current==='player' ? 'Turno del Jugador' : 'Turno del Rival');
     draw(state.current, TURN_DRAW, state.current==='player');
     if (state.current==='enemy') setTimeout(enemyPlays, 700);
@@ -513,7 +516,7 @@ const baseDeck = [
     if (idxPaneles !== -1 && playerHasSolOnBoard) {
       playIndex = idxPaneles;
     } else {
-      // si no, juega la carta de mayor valor (puede ser SOL/PLANTAR/AGUA/CAMBIO/etc.)
+      // si no, juega la carta de mayor valor (puede ser cualquiera)
       for (let i=1;i<h.length;i++) if (h[i].value>h[playIndex].value) playIndex=i;
     }
 
@@ -574,6 +577,17 @@ const baseDeck = [
     banner('Turno del Jugador');
   };
 
-  restartBtn.addEventListener('click', start);
-  start();
+  // Botón de fin de partida -> volver a portada
+  restartBtn.addEventListener('click', () => {
+    overlay.classList.add('hidden');
+    startScreen.classList.remove('hidden');
+  });
+
+  // Iniciar partida desde la portada
+  playBtn.addEventListener('click', () => {
+    startScreen.classList.add('hidden');
+    start();
+  });
+
+  // Nota: no llamamos a start() automáticamente para mostrar la portada al entrar
 })();
