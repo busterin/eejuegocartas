@@ -78,9 +78,7 @@
     t.className = 'toast';
     t.textContent = msg;
     wrap.appendChild(t);
-    // entrada
     requestAnimationFrame(()=> t.classList.add('in'));
-    // salida
     setTimeout(()=> {
       t.classList.remove('in');
       t.classList.add('out');
@@ -127,7 +125,6 @@
     img.src = card.image;
     img.alt = card.label || '';
 
-    // Solo número visible
     const num = document.createElement('div');
     num.className = 'number';
     num.textContent = `-${card.value}`;
@@ -137,32 +134,33 @@
     return el;
   };
 
-  // ===== DRAG & TAP-TO-ZOOM (robusto) =====
+  // ===== DRAG & TAP-TO-ZOOM (robusto y cross-desktop/móvil) =====
   const DRAG_THRESHOLD = 12; // px
   let drag = {
     active:false, moved:false,
     id:null, card:null, originEl:null,
     startX:0, startY:0, startRect:null,
-    ghost:null, pointerId:null
+    ghost:null
   };
-  let suppressNextClick = false;
   let justDragged = false;
 
   const onPointerDownCard = (cardObj, cardEl) => (e) => {
     if (state.current !== 'player') return;
 
-    e.preventDefault();
-    try { e.target.setPointerCapture?.(e.pointerId); } catch {}
-
+    e.preventDefault(); // evita selección/gestos
+    // NO usamos pointer capture (algunos navegadores cambian el destino de pointerup)
     drag.active = true; drag.moved = false;
     drag.id = cardObj.id; drag.card = cardObj; drag.originEl = cardEl;
-    drag.pointerId = e.pointerId;
     drag.startX = e.clientX; drag.startY = e.clientY;
     drag.startRect = cardEl.getBoundingClientRect();
 
-    window.addEventListener('pointermove', onPointerMove, { passive:false });
-    window.addEventListener('pointerup', onPointerUp, { once:true });
-    window.addEventListener('pointercancel', onPointerCancel, { once:true });
+    // Escuchas redundantes para asegurar pointerup en desktop:
+    document.addEventListener('pointermove', onPointerMove, { passive:false });
+    // pointerup en documento (capture) y en la propia carta:
+    document.addEventListener('pointerup', onPointerUp, { once:true, capture:true });
+    cardEl.addEventListener('pointerup', onPointerUp, { once:true });
+
+    document.addEventListener('pointercancel', onPointerCancel, { once:true, capture:true });
   };
 
   const onPointerMove = (e) => {
@@ -220,18 +218,16 @@
   const cleanupDrag = () => {
     if (drag.originEl) drag.originEl.style.visibility = '';
     if (drag.ghost) { try{ drag.ghost.remove(); }catch{} }
-    window.removeEventListener('pointermove', onPointerMove);
-    window.removeEventListener('pointercancel', onPointerCancel);
-    drag = { active:false, moved:false, id:null, card:null, originEl:null, startX:0, startY:0, startRect:null, ghost:null, pointerId:null };
+    document.removeEventListener('pointermove', onPointerMove);
+    document.removeEventListener('pointercancel', onPointerCancel, true);
+    drag = { active:false, moved:false, id:null, card:null, originEl:null, startX:0, startY:0, startRect:null, ghost:null };
   };
 
   const onPointerUp = (e) => {
     if (!drag.active) return;
 
-    // TAP sin mover ⇒ ZOOM
+    // TAP sin mover ⇒ ZOOM (mano)
     if (!drag.moved) {
-      suppressNextClick = true;
-      setTimeout(()=> suppressNextClick = false, 0);
       cleanupDrag();
       showCardZoom(drag.card);
       return;
@@ -299,9 +295,11 @@
     elPlayerHand.innerHTML = '';
     state.player.hand.forEach(c=>{
       const view = cardHTML(c);
+      // pointerdown: tap=zoom o drag
       view.addEventListener('pointerdown', onPointerDownCard(c, view), { passive:false });
-      view.addEventListener('click', (ev)=>{
-        if (justDragged || suppressNextClick) return;
+      // Fallback por si algún navegador emite sólo click
+      view.addEventListener('click', () => {
+        if (justDragged) return;
         showCardZoom(c);
       });
       elPlayerHand.appendChild(view);
@@ -332,8 +330,8 @@
 
   // Onda solar en la lane del objetivo
   const triggerSolarSweep = (owner) => {
-    const laneEl = owner === 'enemy' ? $('.enemyLaneFake') || document.querySelector('.lane-enemy')
-                                     : $('.playerLaneFake') || document.querySelector('.lane-player');
+    const laneEl = owner === 'enemy' ? document.querySelector('.lane-enemy')
+                                     : document.querySelector('.lane-player');
     if (!laneEl) return;
     laneEl.classList.remove('solar-sweep'); void laneEl.offsetWidth; laneEl.classList.add('solar-sweep');
     setTimeout(()=> laneEl.classList.remove('solar-sweep'), 700);
@@ -356,7 +354,6 @@
         removedCount++;
         opponentSlots[i] = null;
 
-        // efecto "estallido" en el slot
         const slotEl = slotsEls[i];
         if (slotEl){
           slotEl.classList.remove('sun-pop'); void slotEl.offsetWidth; slotEl.classList.add('sun-pop');
@@ -367,13 +364,9 @@
 
     if (removedCount > 0) {
       triggerSolarSweep(opponent);
-
-      // Devolver contaminación al oponente (clamp opcional)
       state[opponent].pollution = clamp(state[opponent].pollution + restored, 0, START_POLLUTION);
       updatePollutionUI(); pulse(opponent);
       renderSlots();
-
-      // Toast
       const whoTxt = opponent === 'enemy' ? 'Rival' : 'Jugador';
       createToast(`Paneles Solares elimina ${removedCount} Sol · +${restored} contaminación para ${whoTxt}`);
     }
