@@ -8,6 +8,14 @@
 </head>
 <body>
 
+  <!-- PANTALLA DE PORTADA -->
+  <div id="startScreen" class="start-screen">
+    <div class="cover-card">
+      <img src="assets/Portada.png" alt="Portada">
+      <button id="playBtn" class="btn play-btn">JUGAR</button>
+    </div>
+  </div>
+
   <!-- BARRA SUPERIOR -->
   <div class="topbar">
     <div class="side">
@@ -27,6 +35,7 @@
 
   <!-- TABLERO -->
   <div class="board">
+    <!-- LÍNEA DEL RIVAL -->
     <div class="lane lane-enemy">
       <div class="slot" data-idx="0"></div>
       <div class="slot" data-idx="1"></div>
@@ -35,6 +44,7 @@
       <div class="slot" data-idx="4"></div>
     </div>
 
+    <!-- LÍNEA DEL JUGADOR -->
     <div class="lane lane-player">
       <div class="slot" data-idx="0"></div>
       <div class="slot" data-idx="1"></div>
