@@ -66,7 +66,6 @@
   const howModal    = $('howModal');
   const howClose    = $('howClose');
   const howOkBtn    = $('howOkBtn');
-  const drawOrigin  = $('drawOrigin');
 
   // --------- Utilidades ----------
   const randInt = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
@@ -151,43 +150,43 @@
     setTimeout(()=>{turnBanner.classList.remove('show');setTimeout(()=>turnBanner.classList.add('hidden'),250)},3000);
   };
 
-  // --------- Animación de ROBO desde el mazo ---------
+  // --------- Animación de ROBO desde origen invisible ---------
   const animateDraw = (card, owner) => {
-    if (!drawOrigin) return;
-    const originRect = drawOrigin.getBoundingClientRect();
+    // Origen: punto invisible fuera de pantalla (arriba-derecha)
+    const origin = {
+      left: window.innerWidth + 60,
+      top:  Math.max(40, window.innerHeight * 0.28)
+    };
+
     const g = document.createElement('div');
     g.className = 'draw-card';
     g.innerHTML = `<img src="${card.image}" alt=""><div class="number">-${card.value}</div>`;
 
-    // Punto destino aproximado
+    // Destino aproximado
     let dest = { left: window.innerWidth/2, top: window.innerHeight-20 };
     if (owner === 'player') {
       const handRect = elPlayerHand.getBoundingClientRect();
-      dest.left = handRect.left + handRect.width - 0.6*parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || handRect.right - 90;
+      // Caer cerca del extremo derecho de la mano para vender “orden de llegada”
+      dest.left = handRect.right - (handRect.width * 0.25);
       dest.top  = handRect.top + 12;
     } else {
       const enemyLane = document.querySelector('.lane-enemy').getBoundingClientRect();
-      dest.left = enemyLane.left + enemyLane.width/2;
+      dest.left = enemyLane.left + enemyLane.width * 0.5;
       dest.top  = enemyLane.top - 10;
     }
 
-    // Posicionar en origen
-    Object.assign(g.style, {
-      left: `${originRect.left}px`,
-      top:  `${originRect.top}px`
-    });
+    // Posicionar en origen y animar
+    Object.assign(g.style, { left: `${origin.left}px`, top: `${origin.top}px` });
     document.body.appendChild(g);
 
-    // Forzar entrada + calcular delta
     requestAnimationFrame(()=>{
       g.classList.add('in');
-      const dx = dest.left - originRect.left;
-      const dy = dest.top  - originRect.top;
+      const dx = dest.left - origin.left;
+      const dy = dest.top  - origin.top;
       g.style.setProperty('--dx', `${dx}px`);
       g.style.setProperty('--dy', `${dy}px`);
     });
 
-    // limpiar al final
     setTimeout(()=>{ g.remove(); }, 460);
   };
 
