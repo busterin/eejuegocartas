@@ -660,7 +660,18 @@
   }
 
   // Reiniciar desde overlay
-  restartBtn.addEventListener('click', start);
+  restartBtn.addEventListener('click', () => {
+  // Cerrar overlays por si alguno quedó abierto
+  cardZoom.classList.add('hidden');
+  overlay.classList.add('hidden');
+
+  // Mostrar la portada
+  const startScreen = document.getElementById('startScreen');
+  if (startScreen) startScreen.classList.remove('hidden');
+
+  // Asegurar que no quede ningún temporizador activo
+  if (state.intervalId) { clearInterval(state.intervalId); state.intervalId = null; }
+});
 
   // Nota: NO llamamos a start() automáticamente: se inicia desde la portada.
 })();
