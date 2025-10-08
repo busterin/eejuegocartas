@@ -6,18 +6,19 @@
   const MATCH_TIME = 5 * 60; // 5 minutos
   const SLOTS = 5;
 
-  // Paths clave
-  const SOL_IMG = "assets/Carta1.png";       // SOL
-  const PANELES_IMG = "assets/Carta2.png";   // PANELES SOLARES
+  // Paths / Cartas clave
+  const SOL_IMG       = "assets/Carta1.png"; // SOL
+  const PANELES_IMG   = "assets/Carta2.png"; // PANELES SOLARES
+  const LUCES_IMG     = "assets/Carta3.png"; // LUCES APAGADAS
+  const RECICLAJE_IMG = "assets/Carta4.png"; // RECICLAJE
 
   // --------- Mazo base: 7 cartas ---------
-  // (Los títulos no se muestran, pero dejo etiquetas internas por claridad)
   const baseDeck = [
     { label: "Sol",               value: 2, image: SOL_IMG },
     { label: "Paneles Solares",   value: 3, image: PANELES_IMG },
-    { label: "Carta3",            value: 4, image: "assets/Carta3.png" },
-    { label: "Carta4",            value: 5, image: "assets/Carta4.png" },
-    { label: "Carta5",            value: 6, image: "assets/Carta5.png" },
+    { label: "Luces Apagadas",    value: 0, image: LUCES_IMG },
+    { label: "Reciclaje",         value: 2, image: RECICLAJE_IMG },
+    { label: "Carta5",            value: 5, image: "assets/Carta5.png" },
     { label: "Carta6",            value: 3, image: "assets/Carta6.png" },
     { label: "Carta7",            value: 4, image: "assets/Carta7.png" },
   ];
@@ -28,7 +29,9 @@
     enemy:  { pollution: START_POLLUTION, hand: [], slots: Array(SLOTS).fill(null) },
     current: 'player',
     timer: MATCH_TIME,
-    intervalId: null
+    intervalId: null,
+    // Anula la siguiente carta que juegue cada bando
+    nullifyNext: { player: false, enemy: false },
   };
 
   // --------- DOM ----------
@@ -55,19 +58,19 @@
   const timeFmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
-  // Robar una carta del mazo (posibilidad de filtrar para el rival)
-  const randFromDeck = (owner=null) => {
-    let pool = baseDeck;
-    if (owner === 'enemy') {
-      // 🚫 El rival no puede robar SOL
-      pool = baseDeck.filter(c => c.image !== SOL_IMG);
-    }
+  const randFromDeck = () => {
+    const proto = structuredClone(baseDeck[randInt(0, baseDeck.length-1)]);
+    proto.id = `c-${Math.random().toString(36).slice(2,8)}`;
+    return proto;
+  };
+  const randFromDeckExcept = (imagePathToExclude) => {
+    const pool = baseDeck.filter(c => c.image !== imagePathToExclude);
     const proto = structuredClone(pool[randInt(0, pool.length-1)]);
     proto.id = `c-${Math.random().toString(36).slice(2,8)}`;
     return proto;
   };
 
-  // --------- Toaster (para mensajes de efecto) ----------
+  // --------- Toaster ----------
   let toastContainer;
   const ensureToastContainer = () => {
     if (toastContainer) return toastContainer;
@@ -87,12 +90,12 @@
       t.classList.remove('in');
       t.classList.add('out');
       setTimeout(()=> t.remove(), 300);
-    }, 2000);
+    }, 2200);
   };
 
   // --------- Robar cartas ---------
   const draw = (owner, n=1, preview=false) => {
-    for (let i=0;i<n;i++) state[owner].hand.push(randFromDeck(owner));
+    for (let i=0;i<n;i++) state[owner].hand.push(randFromDeck());
     if (owner==='player' && preview && state.player.hand.length){
       showCardZoom(state.player.hand[state.player.hand.length-1]);
       setTimeout(hideCardZoom, 1100);
@@ -236,17 +239,25 @@
     const slot = dropEl?.closest?.('.lane-player .slot');
 
     if (slot && state.current === 'player') {
+      const slotIdx = Number(slot.dataset.idx);
       animateGhostTo(slot, () => {
         const idx = state.player.hand.findIndex(c=>c.id===drag.id);
         if (idx !== -1) {
           const card = state.player.hand.splice(idx,1)[0];
-          const slotIdx = Number(slot.dataset.idx);
           state.player.slots[slotIdx] = card;
           renderSlots();
           flashSlot(slot);
 
-          applyEffect('player', card);
-          applySpecialEffects('player', card);
+          // ¿Está anulada la próxima carta del jugador?
+          if (state.nullifyNext.player) {
+            state.nullifyNext.player = false;
+            triggerNullifySweep('player');
+            markSlotNullified(slot);
+            createToast("Tu carta ha sido anulada por LUCES APAGADAS");
+          } else {
+            applyEffect('player', card);
+            applySpecialEffects('player', card, slotIdx);
+          }
 
           if (state.player.pollution === 0) { cleanupDrag(); endGame('win','¡Llegaste a 0 de contaminación!'); return; }
           refreshHandUI();
@@ -294,7 +305,6 @@
     state.player.hand.forEach(c=>{
       const view = cardHTML(c);
       view.addEventListener('pointerdown', onPointerDownCard(c, view), { passive:false });
-      // Fallback click (por si el navegador sólo emite click)
       view.addEventListener('click', () => {
         if (justDragged) return;
         showCardZoom(c);
@@ -303,7 +313,7 @@
     });
   };
 
-  // --------- Zoom (sin botón cerrar; fondo para cerrar + Esc) ----------
+  // --------- Zoom (sin botón cerrar) ----------
   const showCardZoom = (card) => {
     zoomCard.innerHTML = `
       <img src="${card.image}" alt="${card.label || ''}">
@@ -317,19 +327,11 @@
     const onEsc = (ev) => { if (ev.key === 'Escape') { hideCardZoom(); } };
     document.addEventListener('keydown', onEsc, { once:true });
   };
-  const hideCardZoom = ()=> {
-    cardZoom.classList.add('hidden');
-  };
+  const hideCardZoom = ()=> cardZoom.classList.add('hidden');
 
-  // --------- Juego: efectos básicos y especiales ---------
+  // --------- Efectos visuales auxiliares ----------
   const flashSlot = slot => { slot.classList.remove('flash'); void slot.offsetWidth; slot.classList.add('flash'); };
 
-  const applyEffect = (who, card) => {
-    state[who].pollution = Math.max(0, state[who].pollution - card.value);
-    updatePollutionUI(); pulse(who);
-  };
-
-  // Onda solar en la lane del objetivo
   const triggerSolarSweep = (owner) => {
     const laneEl = owner === 'enemy' ? document.querySelector('.lane-enemy')
                                      : document.querySelector('.lane-player');
@@ -338,38 +340,88 @@
     setTimeout(()=> laneEl.classList.remove('solar-sweep'), 700);
   };
 
-  // Efectos especiales (Paneles Solares -> limpia Sol del rival y restaura su contaminación)
-  const applySpecialEffects = (whoPlayed, card) => {
-    if (!card?.image || card.image !== PANELES_IMG) return;
+  const triggerNullifySweep = (nullifiedOwner) => {
+    const laneEl = nullifiedOwner === 'enemy' ? document.querySelector('.lane-enemy')
+                                              : document.querySelector('.lane-player');
+    if (!laneEl) return;
+    laneEl.classList.remove('nullify-sweep'); void laneEl.offsetWidth; laneEl.classList.add('nullify-sweep');
+    setTimeout(()=> laneEl.classList.remove('nullify-sweep'), 700);
+  };
 
-    const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
-    const opponentSlots = state[opponent].slots;
-    const slotsEls = opponent === 'enemy' ? enemySlots : playerSlots;
+  const markSlotNullified = (slotEl) => {
+    slotEl.classList.remove('nullified'); void slotEl.offsetWidth; slotEl.classList.add('nullified');
+    setTimeout(()=> slotEl.classList.remove('nullified'), 700);
+  };
 
-    let restored = 0;
-    let removedCount = 0;
+  const markSlotMorph = (slotEl) => {
+    slotEl.classList.remove('morph'); void slotEl.offsetWidth; slotEl.classList.add('morph');
+    setTimeout(()=> slotEl.classList.remove('morph'), 700);
+  };
 
-    opponentSlots.forEach((c, i) => {
-      if (c && c.image === SOL_IMG) {
-        restored += c.value;
-        removedCount++;
-        opponentSlots[i] = null;
+  // --------- Juego: efectos básicos y especiales ---------
+  const applyEffect = (who, card) => {
+    state[who].pollution = Math.max(0, state[who].pollution - card.value);
+    updatePollutionUI(); pulse(who);
+  };
 
-        const slotEl = slotsEls[i];
-        if (slotEl){
-          slotEl.classList.remove('sun-pop'); void slotEl.offsetWidth; slotEl.classList.add('sun-pop');
-          setTimeout(()=> slotEl.classList.remove('sun-pop'), 450);
+  const applySpecialEffects = (whoPlayed, card, slotIdx) => {
+    // 1) Paneles Solares => elimina SOL del rival y devuelve contaminación
+    if (card.image === PANELES_IMG) {
+      const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
+      const opponentSlots = state[opponent].slots;
+      const slotsEls = opponent === 'enemy' ? enemySlots : playerSlots;
+
+      let restored = 0;
+      let removedCount = 0;
+
+      opponentSlots.forEach((c, i) => {
+        if (c && c.image === SOL_IMG) {
+          restored += c.value;
+          removedCount++;
+          opponentSlots[i] = null;
+
+          const slotEl = slotsEls[i];
+          if (slotEl){
+            slotEl.classList.remove('sun-pop'); void slotEl.offsetWidth; slotEl.classList.add('sun-pop');
+            setTimeout(()=> slotEl.classList.remove('sun-pop'), 450);
+          }
         }
-      }
-    });
+      });
 
-    if (removedCount > 0) {
-      triggerSolarSweep(opponent);
-      state[opponent].pollution = clamp(state[opponent].pollution + restored, 0, START_POLLUTION);
-      updatePollutionUI(); pulse(opponent);
-      renderSlots();
+      if (removedCount > 0) {
+        triggerSolarSweep(opponent);
+        state[opponent].pollution = clamp(state[opponent].pollution + restored, 0, START_POLLUTION);
+        updatePollutionUI(); pulse(opponent);
+        renderSlots();
+        const whoTxt = opponent === 'enemy' ? 'Rival' : 'Jugador';
+        createToast(`Paneles Solares elimina ${removedCount} Sol · +${restored} contaminación para ${whoTxt}`);
+      }
+    }
+
+    // 2) Luces Apagadas => anula la siguiente carta del rival
+    if (card.image === LUCES_IMG) {
+      const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
+      state.nullifyNext[opponent] = true;
+      triggerNullifySweep(opponent);
       const whoTxt = opponent === 'enemy' ? 'Rival' : 'Jugador';
-      createToast(`Paneles Solares elimina ${removedCount} Sol · +${restored} contaminación para ${whoTxt}`);
+      createToast(`LUCES APAGADAS: la siguiente carta del ${whoTxt} no tendrá efecto`);
+    }
+
+    // 3) Reciclaje => se transforma automáticamente en otra carta (no Carta4)
+    if (card.image === RECICLAJE_IMG) {
+      const ownerSlots = state[whoPlayed].slots;
+      const slotsEls = whoPlayed === 'player' ? playerSlots : enemySlots;
+      const slotEl = slotsEls[slotIdx];
+      // Animación de transformación
+      markSlotMorph(slotEl);
+
+      // Reemplazar carta por otra aleatoria distinta
+      const newCard = randFromDeckExcept(RECICLAJE_IMG);
+      ownerSlots[slotIdx] = newCard;
+      // Re-render del hueco concreto
+      renderSlots();
+      // Un pequeño recordatorio visual
+      createToast(`RECICLAJE → se transforma`);
     }
   };
 
@@ -385,35 +437,35 @@
   const enemyPlays = () => {
     const h = state.enemy.hand; if (!h.length) return nextTurn();
 
-    // IA: prioriza Paneles si hay Sol del jugador en mesa
+    // IA: prioriza Paneles si el jugador tiene Sol en mesa
     const idxPaneles = h.findIndex(c => c.image === PANELES_IMG);
     const playerHasSolOnBoard = state.player.slots.some(c => c && c.image === SOL_IMG);
 
-    // 🚫 Nunca jugar SOL: si existiera por algún motivo, no se selecciona
-    const candidateIndices = h
-      .map((c, i) => ({c, i}))
-      .filter(x => x.c.image !== SOL_IMG)
-      .map(x => x.i);
-
-    let playIndex;
+    let playIndex = 0;
     if (idxPaneles !== -1 && playerHasSolOnBoard) {
       playIndex = idxPaneles;
     } else {
-      // de los candidatos, elegir el de mayor valor
-      playIndex = candidateIndices[0] ?? 0;
-      for (const i of candidateIndices) {
-        if (h[i].value > h[playIndex].value) playIndex = i;
-      }
+      // si no, juega la carta de mayor valor (permitimos SOL de nuevo)
+      for (let i=1;i<h.length;i++) if (h[i].value>h[playIndex].value) playIndex=i;
     }
 
     const card = h.splice(playIndex,1)[0];
+    // Hueco enemigo: libre o sustituye el de menor valor
     let idx = state.enemy.slots.findIndex(s=>!s);
     if (idx === -1){ let min=Infinity, at=0; state.enemy.slots.forEach((c,i)=>{if(c.value<min){min=c.value;at=i}}); idx=at; }
 
     state.enemy.slots[idx]=card; flashSlot(enemySlots[idx]); renderSlots();
 
-    applyEffect('enemy',card);
-    applySpecialEffects('enemy', card);
+    // ¿Está anulada la próxima carta del rival (enemy)?
+    if (state.nullifyNext.enemy) {
+      state.nullifyNext.enemy = false;
+      triggerNullifySweep('enemy');
+      markSlotNullified(enemySlots[idx]);
+      createToast("Carta del Rival anulada por LUCES APAGADAS");
+    } else {
+      applyEffect('enemy',card);
+      applySpecialEffects('enemy', card, idx);
+    }
 
     if (state.enemy.pollution === 0) return endGame('lose','El rival llegó a 0.');
     nextTurn();
@@ -442,6 +494,7 @@
     Object.assign(state.player,{pollution:START_POLLUTION,hand:[],slots:Array(SLOTS).fill(null)});
     Object.assign(state.enemy ,{pollution:START_POLLUTION,hand:[],slots:Array(SLOTS).fill(null)});
     state.current='player'; state.timer=MATCH_TIME;
+    state.nullifyNext = { player:false, enemy:false };
     clearInterval(state.intervalId); overlay.classList.add('hidden');
 
     updatePollutionUI(); renderSlots(); refreshHandUI();
