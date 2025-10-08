@@ -129,6 +129,7 @@ img{-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
   padding:clamp(8px,2.2vw,20px);
   box-shadow:var(--shadow);
   border:1px solid rgba(255,255,255,.06);
+  position:relative;
 }
 .lane{
   display:grid;grid-template-columns:repeat(5,1fr);
@@ -140,6 +141,44 @@ img{-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
              linear-gradient(0deg,rgba(0,0,0,.25),rgba(0,0,0,.1));
   outline:2px dashed rgba(255,255,255,.12);outline-offset:-8px;
   display:grid;place-items:center;color:#cfe5d4;user-select:none;overflow:hidden;
+}
+
+/* --- Origen del robo (mazo) --- */
+.draw-origin{
+  position:absolute;
+  top:calc(50% - 40px);
+  right:clamp(6px,1.6vw,12px);
+  width:56px; height:80px;
+  border-radius:10px;
+  background:linear-gradient(180deg,#0f2419,#0a1a12);
+  border:3px solid #2a6d4a;
+  box-shadow:0 6px 18px rgba(0,0,0,.45), inset 0 0 0 3px rgba(255,255,255,.06);
+  opacity:.9;
+}
+.draw-card{
+  position:fixed; z-index:1000; pointer-events:none;
+  width:var(--card-w); height:var(--card-h);
+  border-radius:var(--radius);
+  border:4px solid var(--card-edge);
+  background:var(--card);
+  box-shadow:var(--shadow);
+  overflow:hidden;
+  transform:translate(var(--dx,0),var(--dy,0)) scale(.88);
+  opacity:0;
+}
+.draw-card.in{
+  transition:transform 420ms cubic-bezier(.2,.75,.2,1), opacity 120ms ease-out;
+  opacity:1;
+}
+.draw-card img{
+  position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; object-position:center;
+}
+.draw-card .number{
+  position:absolute; top:6px; right:6px;
+  font-weight:900; font-size:1.2rem;
+  background:rgba(0,0,0,.35); padding:4px 8px; border-radius:8px;
+  color:#fff;
 }
 
 /* --- CARTA --- */
@@ -158,46 +197,21 @@ img{-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
 }
 .card:hover{transform:translateY(-4px)}
 .card-inner{position:relative;width:100%;height:100%;}
-
-/* Imagen ocupa toda la carta */
 .card-img{
-  position:absolute;inset:0;
-  width:100%;height:100%;
-  object-fit:cover;
-  object-position:center center;
-  border-radius:calc(var(--radius)-2px);
-  z-index:1;
-  pointer-events:none;
+  position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center center;
+  border-radius:calc(var(--radius)-2px);z-index:1;pointer-events:none;
 }
-
-/* velo */
 .card.has-image::after{
-  content:"";position:absolute;inset:0;z-index:2;
-  border-radius:calc(var(--radius)-2px);
+  content:"";position:absolute;inset:0;z-index:2;border-radius:calc(var(--radius)-2px);
   background:linear-gradient(180deg,rgba(0,0,0,.12),rgba(0,0,0,.35));
-  pointer-events:none;
 }
-
-/* sólo número visible */
 .card .number{
-  position:absolute;
-  top:clamp(6px,1.2vw,10px);
-  right:clamp(6px,1.2vw,10px);
-  font-size:clamp(1.2rem,2.6vw,1.6rem);
-  font-weight:900;
-  line-height:1;
-  background:rgba(0,0,0,.4);
-  padding:4px 8px;
-  border-radius:8px;
-  font-variant-numeric:tabular-nums;
-  z-index:3;
+  position:absolute;top:clamp(6px,1.2vw,10px);right:clamp(6px,1.2vw,10px);
+  font-size:clamp(1.2rem,2.6vw,1.6rem);font-weight:900;line-height:1;
+  background:rgba(0,0,0,.4);padding:4px 8px;border-radius:8px;z-index:3;
 }
 
-/* carta en hueco */
-.card.in-slot{
-  width:100%;height:100%;
-  animation:dropBounce 240ms ease;
-}
+.card.in-slot{width:100%;height:100%;animation:dropBounce 240ms ease;}
 @keyframes dropBounce{0%{transform:scale(.9)}55%{transform:scale(1.02)}100%{transform:scale(1)}}
 .card.in-slot .number{font-size:clamp(1rem,2.4vw,1.6rem)}
 .card.fly{position:fixed;pointer-events:none;z-index:1000;will-change:transform;transition:none;}
