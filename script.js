@@ -16,15 +16,15 @@
   const CAMBIO_IMG    = "assets/Carta7.png"; // CAMBIO
 
   // --------- Mazo base: 7 cartas ---------
-const baseDeck = [
-  { label: "Sol",               value: 8, image: "assets/Carta1.png" },
-  { label: "Paneles Solares",   value: 6, image: "assets/Carta2.png" },
-  { label: "Luces Apagadas",    value: 4, image: "assets/Carta3.png" },
-  { label: "Reciclaje",         value: 0, image: "assets/Carta4.png" },
-  { label: "Plantar",           value: 0, image: "assets/Carta5.png" },
-  { label: "Agua",              value: 2, image: "assets/Carta6.png" },
-  { label: "Cambio",            value: 0, image: "assets/Carta7.png" },
-];
+  const baseDeck = [
+    { label: "Sol",               value: 8, image: "assets/Carta1.png" },
+    { label: "Paneles Solares",   value: 6, image: "assets/Carta2.png" },
+    { label: "Luces Apagadas",    value: 4, image: "assets/Carta3.png" },
+    { label: "Reciclaje",         value: 0, image: "assets/Carta4.png" },
+    { label: "Plantar",           value: 0, image: "assets/Carta5.png" },
+    { label: "Agua",              value: 2, image: "assets/Carta6.png" },
+    { label: "Cambio",            value: 0, image: "assets/Carta7.png" },
+  ];
 
   // --------- Estado ----------
   const state = {
@@ -56,6 +56,10 @@ const baseDeck = [
   const playerSlots = Array.from(document.querySelectorAll('.lane-player .slot'));
   const enemySlots  = Array.from(document.querySelectorAll('.lane-enemy .slot'));
 
+  // === Portada (añadido) ===
+  const startScreen = $('startScreen');
+  const playBtn     = $('playBtn');
+
   // --------- Utilidades ----------
   const randInt = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
   const timeFmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
@@ -75,7 +79,6 @@ const baseDeck = [
 
   // === Imagen de tablero: usar ...tablero.png sólo en la miniatura de mesa ===
   const boardThumb = (imgPath) => {
-    // Si termina en .png, reemplaza por tablero.png (p.ej. Carta5.png -> Carta5tablero.png)
     if (typeof imgPath === 'string' && imgPath.endsWith('.png')) {
       const base = imgPath.slice(0, -4);
       return `${base}tablero.png`;
@@ -142,7 +145,6 @@ const baseDeck = [
 
     const img = document.createElement('img');
     img.className = 'card-img';
-    // Mano/zoom usan imagen normal; tablero usa miniatura específica
     img.src = inSlot ? boardThumb(card.image) : card.image;
     img.alt = card.label || '';
 
@@ -155,7 +157,7 @@ const baseDeck = [
     return el;
   };
 
-  // ===== DRAG & TAP-TO-ZOOM (cross desktop/móvil) =====
+  // ===== DRAG & TAP-TO-ZOOM =====
   const DRAG_THRESHOLD = 12; // px
   let drag = {
     active:false, moved:false,
@@ -302,7 +304,6 @@ const baseDeck = [
         const c = state[owner].slots[i];
         if (c){
           const view = cardHTML(c, {inSlot:true});
-          // En el tablero: click/tap = zoom (zoom usa imagen original)
           view.addEventListener('click', ()=>showCardZoom(c));
           slotEl.appendChild(view);
         }
@@ -333,10 +334,7 @@ const baseDeck = [
       <div class="number">-${card.value}</div>`;
     cardZoom.classList.remove('hidden');
 
-    // Cerrar tocando/clicando fuera de la tarjeta
     cardZoom.onclick = (e)=>{ if (e.target===cardZoom) hideCardZoom(); };
-
-    // Cerrar con ESC
     const onEsc = (ev) => { if (ev.key === 'Escape') { hideCardZoom(); } };
     document.addEventListener('keydown', onEsc, { once:true });
   };
@@ -371,11 +369,9 @@ const baseDeck = [
     setTimeout(()=> slotEl.classList.remove('morph'), 700);
   };
 
-  // Nuevo: animación visual de CAMBIO
   const markSwapSlots = (slotA, slotB) => {
     if (slotA) { slotA.classList.remove('swap'); void slotA.offsetWidth; slotA.classList.add('swap'); }
     if (slotB) { slotB.classList.remove('swap'); void slotB.offsetWidth; slotB.classList.add('swap'); }
-    // flip de la carta dentro del slot
     const cardA = slotA?.querySelector('.card');
     const cardB = slotB?.querySelector('.card');
     if (cardA) { cardA.classList.remove('swap-flip'); void cardA.offsetWidth; cardA.classList.add('swap-flip'); }
@@ -390,17 +386,15 @@ const baseDeck = [
 
   // --------- Juego: efectos básicos y especiales ---------
   const applyEffect = (who, card) => {
-    // Doble efecto base si está activo AGUA para este bando
     const mult = state.doubleNext[who] ? 2 : 1;
     const base = (card.value || 0) * mult;
-    if (state.doubleNext[who]) state.doubleNext[who] = false; // se consume
+    if (state.doubleNext[who]) state.doubleNext[who] = false;
 
     state[who].pollution = Math.max(0, state[who].pollution - base);
     updatePollutionUI(); pulse(who);
   };
 
   const applySpecialEffects = (whoPlayed, card, slotIdx) => {
-    // PANELes SOLARES => elimina SOL del rival y devuelve contaminación
     if (card.image === PANELES_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
       const opponentSlots = state[opponent].slots;
@@ -425,7 +419,7 @@ const baseDeck = [
 
       if (removedCount > 0) {
         triggerSolarSweep(opponent);
-        state[opponent].pollution = clamp(state[opponent].pollution + restored, 0, START_POLLUTION);
+        state[opponent].pollution = Math.max(0, Math.min(START_POLLUTION, state[opponent].pollution + restored));
         updatePollutionUI(); pulse(opponent);
         renderSlots();
         const whoTxt = opponent === 'enemy' ? 'Rival' : 'Jugador';
@@ -433,7 +427,6 @@ const baseDeck = [
       }
     }
 
-    // LUCES APAGADAS => anula la siguiente carta del rival
     if (card.image === LUCES_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
       state.nullifyNext[opponent] = true;
@@ -442,7 +435,6 @@ const baseDeck = [
       createToast(`LUCES APAGADAS: la siguiente carta del ${whoTxt} no tendrá efecto`);
     }
 
-    // RECICLAJE => se transforma en otra carta (no Carta4)
     if (card.image === RECICLAJE_IMG) {
       const ownerSlots = state[whoPlayed].slots;
       const slotsEls = whoPlayed === 'player' ? playerSlots : enemySlots;
@@ -455,7 +447,6 @@ const baseDeck = [
       createToast(`RECICLAJE → se transforma`);
     }
 
-    // PLANTAR => -2 por cada carta en tu propio tablero (incluida esta)
     if (card.image === PLANTAR_IMG) {
       const count = state[whoPlayed].slots.filter(Boolean).length;
       const extra = 2 * count;
@@ -466,13 +457,11 @@ const baseDeck = [
       }
     }
 
-    // AGUA => duplica el efecto base de la PRÓXIMA carta del mismo bando
     if (card.image === AGUA_IMG) {
       state.doubleNext[whoPlayed] = true;
       createToast(`AGUA: tu próxima carta resta el doble`);
     }
 
-    // CAMBIO => intercambia con la carta del rival enfrente (mismo índice)
     if (card.image === CAMBIO_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
       if (typeof slotIdx === 'number') {
@@ -505,7 +494,6 @@ const baseDeck = [
   const enemyPlays = () => {
     const h = state.enemy.hand; if (!h.length) return nextTurn();
 
-    // IA: prioriza Paneles si el jugador tiene Sol en mesa
     const idxPaneles = h.findIndex(c => c.image === PANELES_IMG);
     const playerHasSolOnBoard = state.player.slots.some(c => c && c.image === SOL_IMG);
 
@@ -513,18 +501,15 @@ const baseDeck = [
     if (idxPaneles !== -1 && playerHasSolOnBoard) {
       playIndex = idxPaneles;
     } else {
-      // si no, juega la carta de mayor valor (puede ser SOL/PLANTAR/AGUA/CAMBIO/etc.)
       for (let i=1;i<h.length;i++) if (h[i].value>h[playIndex].value) playIndex=i;
     }
 
     const card = h.splice(playIndex,1)[0];
-    // Hueco enemigo: libre o sustituye el de menor valor
     let idx = state.enemy.slots.findIndex(s=>!s);
     if (idx === -1){ let min=Infinity, at=0; state.enemy.slots.forEach((c,i)=>{if(c && c.value<min){min=c.value;at=i}}); idx=at; }
 
     state.enemy.slots[idx]=card; flashSlot(enemySlots[idx]); renderSlots();
 
-    // ¿Está anulada la próxima carta del rival (enemy)?
     if (state.nullifyNext.enemy) {
       state.nullifyNext.enemy = false;
       triggerNullifySweep('enemy');
@@ -574,6 +559,15 @@ const baseDeck = [
     banner('Turno del Jugador');
   };
 
+  // === Portada: iniciar juego al pulsar ===
+  if (playBtn && startScreen) {
+    playBtn.addEventListener('click', () => {
+      startScreen.classList.add('hidden');
+      start();
+    });
+  }
+
+  // IMPORTANTE: ya NO llamamos a start() automáticamente.
+  // restartBtn sigue funcionando igual para reiniciar desde dentro del juego.
   restartBtn.addEventListener('click', start);
-  start();
 })();
