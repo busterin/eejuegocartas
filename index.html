@@ -28,7 +28,7 @@
         <h3>Flujo de partida</h3>
         <ul>
           <li>Cada jugador comienza con <strong>50</strong> de contaminación.</li>
-          <li>Empiezas con <strong>5 cartas</strong> y al inicio de cada turno robas <strong>1</strong>.</li>
+          <li>Empiezas con <strong>5 cartas</strong> y al inicio de cada turno robas <strong>1</strong> (excepto el <strong>primer turno</strong> de la partida).</li>
           <li>En tu turno, <strong>arrastra</strong> una carta desde la mano a uno de tus <strong>5 huecos</strong> del tablero (si un hueco está ocupado, <strong>la nueva carta sustituye</strong> a la anterior).</li>
           <li>El número de la carta se resta de tu propia contaminación (por ejemplo, una carta de valor 8 te resta 8 puntos).</li>
           <li>Pulsa cualquier carta (en mano o tablero) para <strong>ampliarla</strong> y ver sus detalles.</li>
@@ -76,6 +76,9 @@
 
   <!-- Tapete -->
   <main class="board">
+    <!-- Origen visual del robo (mazo) -->
+    <div id="drawOrigin" class="draw-origin" aria-hidden="true" title="Mazo"></div>
+
     <!-- Fila Rival -->
     <section class="lane lane-enemy" id="enemyLane">
       <div class="slot" data-owner="enemy" data-idx="0"></div>
