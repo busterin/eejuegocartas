@@ -6,6 +6,10 @@
   const MATCH_TIME = 5 * 60; // 5 minutos
   const SLOTS = 5;
 
+  // Tiempos
+  const DRAW_DELAY = 1200;      // espera antes de robar al empezar cada turno
+  const AFTER_DRAW_PAUSE = 700; // pausa tras animar robo antes de que el rival juegue
+
   // Paths / Cartas clave
   const SOL_IMG       = "assets/Carta1.png"; // SOL
   const PANELES_IMG   = "assets/Carta2.png"; // PANELES SOLARES
@@ -35,6 +39,7 @@
     intervalId: null,
     nullifyNext: { player: false, enemy: false }, // Luces Apagadas
     doubleNext:  { player: false, enemy: false }, // Agua
+    firstTurnNoDrawDone: false // para no robar en el primer turno de la partida
   };
 
   // --------- DOM ----------
@@ -55,14 +60,13 @@
   const zoomCard          = $('zoomCard');
   const playerSlots = Array.from(document.querySelectorAll('.lane-player .slot'));
   const enemySlots  = Array.from(document.querySelectorAll('.lane-enemy .slot'));
-
-  // === Portada + Modal "Cómo jugar" ===
   const startScreen = $('startScreen');
   const playBtn     = $('playBtn');
   const howBtn      = $('howBtn');
   const howModal    = $('howModal');
   const howClose    = $('howClose');
   const howOkBtn    = $('howOkBtn');
+  const drawOrigin  = $('drawOrigin');
 
   // --------- Utilidades ----------
   const randInt = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
@@ -81,7 +85,6 @@
     return proto;
   };
 
-  // === Imagen de tablero: usar ...tablero.png sólo en la miniatura de mesa ===
   const boardThumb = (imgPath) => {
     if (typeof imgPath === 'string' && imgPath.endsWith('.png')) {
       const base = imgPath.slice(0, -4);
@@ -113,7 +116,7 @@
     }, 2200);
   };
 
-  // --------- Pop de daño/estricto: número flotante cerca del contador ---------
+  // --------- Pop de daño visual ----------
   const showDamage = (who, amount) => {
     if (!amount) return;
     const bubble = who === 'player' ? elPlayerBubble : elEnemyBubble;
@@ -121,43 +124,18 @@
     span.textContent = (amount > 0 ? '-' : '+') + Math.abs(amount);
     Object.assign(span.style, {
       position:'absolute',
-      left:'50%',
-      top:'-6px',
-      transform:'translate(-50%,0)',
-      color:'#fff',
-      fontWeight:'900',
-      textShadow:'0 2px 8px rgba(0,0,0,.6)',
-      background:'rgba(0,0,0,.35)',
-      padding:'2px 6px',
-      borderRadius:'8px',
-      pointerEvents:'none',
-      opacity:'0',
-      transition:'transform .4s ease, opacity .4s ease',
-      zIndex:'100'
+      left:'50%', top:'-6px', transform:'translate(-50%,0)',
+      color:'#fff', fontWeight:'900', textShadow:'0 2px 8px rgba(0,0,0,.6)',
+      background:'rgba(0,0,0,.35)', padding:'2px 6px', borderRadius:'8px',
+      pointerEvents:'none', opacity:'0', transition:'transform .4s ease, opacity .4s ease', zIndex:'100'
     });
     bubble.style.position = 'relative';
     bubble.appendChild(span);
-    requestAnimationFrame(()=>{
-      span.style.opacity='1';
-      span.style.transform='translate(-50%,-18px)';
-    });
-    setTimeout(()=>{
-      span.style.opacity='0';
-      span.style.transform='translate(-50%,-34px)';
-      setTimeout(()=> span.remove(), 250);
-    }, 550);
+    requestAnimationFrame(()=>{ span.style.opacity='1'; span.style.transform='translate(-50%,-18px)'; });
+    setTimeout(()=>{ span.style.opacity='0'; span.style.transform='translate(-50%,-34px)'; setTimeout(()=> span.remove(), 250); }, 550);
   };
 
-  // --------- Robar cartas ---------
-  const draw = (owner, n=1, preview=false) => {
-    for (let i=0;i<n;i++) state[owner].hand.push(randFromDeck());
-    if (owner==='player' && preview && state.player.hand.length){
-      showCardZoom(state.player.hand[state.player.hand.length-1]);
-      setTimeout(hideCardZoom, 1100);
-    }
-    refreshHandUI();
-  };
-
+  // --------- UI básica ----------
   const updatePollutionUI = () => {
     elPlayerPollution.textContent = state.player.pollution;
     elEnemyPollution.textContent  = state.enemy.pollution;
@@ -171,6 +149,60 @@
     turnBanner.classList.remove('hidden');
     requestAnimationFrame(()=>turnBanner.classList.add('show'));
     setTimeout(()=>{turnBanner.classList.remove('show');setTimeout(()=>turnBanner.classList.add('hidden'),250)},3000);
+  };
+
+  // --------- Animación de ROBO desde el mazo ---------
+  const animateDraw = (card, owner) => {
+    if (!drawOrigin) return;
+    const originRect = drawOrigin.getBoundingClientRect();
+    const g = document.createElement('div');
+    g.className = 'draw-card';
+    g.innerHTML = `<img src="${card.image}" alt=""><div class="number">-${card.value}</div>`;
+
+    // Punto destino aproximado
+    let dest = { left: window.innerWidth/2, top: window.innerHeight-20 };
+    if (owner === 'player') {
+      const handRect = elPlayerHand.getBoundingClientRect();
+      dest.left = handRect.left + handRect.width - 0.6*parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--card-w')) || handRect.right - 90;
+      dest.top  = handRect.top + 12;
+    } else {
+      const enemyLane = document.querySelector('.lane-enemy').getBoundingClientRect();
+      dest.left = enemyLane.left + enemyLane.width/2;
+      dest.top  = enemyLane.top - 10;
+    }
+
+    // Posicionar en origen
+    Object.assign(g.style, {
+      left: `${originRect.left}px`,
+      top:  `${originRect.top}px`
+    });
+    document.body.appendChild(g);
+
+    // Forzar entrada + calcular delta
+    requestAnimationFrame(()=>{
+      g.classList.add('in');
+      const dx = dest.left - originRect.left;
+      const dy = dest.top  - originRect.top;
+      g.style.setProperty('--dx', `${dx}px`);
+      g.style.setProperty('--dy', `${dy}px`);
+    });
+
+    // limpiar al final
+    setTimeout(()=>{ g.remove(); }, 460);
+  };
+
+  // --------- Robar cartas (con opción de animar) ---------
+  const draw = (owner, n=1, preview=false, {animate=false}={}) => {
+    for (let i=0;i<n;i++) {
+      const newC = randFromDeck();
+      state[owner].hand.push(newC);
+      if (animate) animateDraw(newC, owner);
+    }
+    if (owner==='player' && preview && state.player.hand.length){
+      showCardZoom(state.player.hand[state.player.hand.length-1]);
+      setTimeout(hideCardZoom, 1100);
+    }
+    refreshHandUI();
   };
 
   // --------- Render de cartas ----------
@@ -198,17 +230,11 @@
 
   // ===== DRAG & TAP-TO-ZOOM =====
   const DRAG_THRESHOLD = 12; // px
-  let drag = {
-    active:false, moved:false,
-    id:null, card:null, originEl:null,
-    startX:0, startY:0, startRect:null,
-    ghost:null
-  };
+  let drag = { active:false, moved:false, id:null, card:null, originEl:null, startX:0, startY:0, startRect:null, ghost:null };
   let justDragged = false;
 
   const onPointerDownCard = (cardObj, cardEl) => (e) => {
     if (state.current !== 'player') return;
-
     e.preventDefault();
     drag.active = true; drag.moved = false;
     drag.id = cardObj.id; drag.card = cardObj; drag.originEl = cardEl;
@@ -343,8 +369,7 @@
         const c = state[owner].slots[i];
         if (c){
           const view = cardHTML(c, {inSlot:true});
-          // En el tablero: click/tap = zoom (zoom usa imagen original)
-          view.addEventListener('click', ()=>showCardZoom(c));
+          view.addEventListener('click', ()=>showCardZoom(c)); // zoom
           slotEl.appendChild(view);
         }
       });
@@ -359,10 +384,7 @@
     state.player.hand.forEach(c=>{
       const view = cardHTML(c);
       view.addEventListener('pointerdown', onPointerDownCard(c, view), { passive:false });
-      view.addEventListener('click', () => {
-        if (justDragged) return;
-        showCardZoom(c);
-      });
+      view.addEventListener('click', () => { if (!justDragged) showCardZoom(c); });
       elPlayerHand.appendChild(view);
     });
   };
@@ -373,11 +395,7 @@
       <img src="${card.image}" alt="${card.label || ''}">
       <div class="number">-${card.value}</div>`;
     cardZoom.classList.remove('hidden');
-
-    // Cerrar tocando/clicando fuera de la tarjeta
     cardZoom.onclick = (e)=>{ if (e.target===cardZoom) hideCardZoom(); };
-
-    // Cerrar con ESC
     const onEsc = (ev) => { if (ev.key === 'Escape') { hideCardZoom(); } };
     document.addEventListener('keydown', onEsc, { once:true });
   };
@@ -387,16 +405,14 @@
   const flashSlot = slot => { slot.classList.remove('flash'); void slot.offsetWidth; slot.classList.add('flash'); };
 
   const triggerSolarSweep = (owner) => {
-    const laneEl = owner === 'enemy' ? document.querySelector('.lane-enemy')
-                                     : document.querySelector('.lane-player');
+    const laneEl = owner === 'enemy' ? document.querySelector('.lane-enemy') : document.querySelector('.lane-player');
     if (!laneEl) return;
     laneEl.classList.remove('solar-sweep'); void laneEl.offsetWidth; laneEl.classList.add('solar-sweep');
     setTimeout(()=> laneEl.classList.remove('solar-sweep'), 700);
   };
 
   const triggerNullifySweep = (nullifiedOwner) => {
-    const laneEl = nullifiedOwner === 'enemy' ? document.querySelector('.lane-enemy')
-                                              : document.querySelector('.lane-player');
+    const laneEl = nullifiedOwner === 'enemy' ? document.querySelector('.lane-enemy') : document.querySelector('.lane-player');
     if (!laneEl) return;
     laneEl.classList.remove('nullify-sweep'); void laneEl.offsetWidth; laneEl.classList.add('nullify-sweep');
     setTimeout(()=> laneEl.classList.remove('nullify-sweep'), 700);
@@ -412,7 +428,6 @@
     setTimeout(()=> slotEl.classList.remove('morph'), 700);
   };
 
-  // Animación visual de CAMBIO
   const markSwapSlots = (slotA, slotB) => {
     if (slotA) { slotA.classList.remove('swap'); void slotA.offsetWidth; slotA.classList.add('swap'); }
     if (slotB) { slotB.classList.remove('swap'); void slotB.offsetWidth; slotB.classList.add('swap'); }
@@ -421,46 +436,32 @@
     if (cardA) { cardA.classList.remove('swap-flip'); void cardA.offsetWidth; cardA.classList.add('swap-flip'); }
     if (cardB) { cardB.classList.remove('swap-flip'); void cardB.offsetWidth; cardB.classList.add('swap-flip'); }
     setTimeout(()=>{
-      slotA?.classList.remove('swap');
-      slotB?.classList.remove('swap');
-      cardA?.classList.remove('swap-flip');
-      cardB?.classList.remove('swap-flip');
+      slotA?.classList.remove('swap'); slotB?.classList.remove('swap');
+      cardA?.classList.remove('swap-flip'); cardB?.classList.remove('swap-flip');
     }, 700);
   };
 
   // --------- Juego: efectos básicos y especiales ---------
   const applyEffect = (who, card) => {
-    // Doble efecto base si está activo AGUA para este bando
     const mult = state.doubleNext[who] ? 2 : 1;
     const base = (card.value || 0) * mult;
     if (state.doubleNext[who]) state.doubleNext[who] = false; // se consume
-
     state[who].pollution = Math.max(0, state[who].pollution - base);
-    updatePollutionUI(); pulse(who);
-    showDamage(who, base);
+    updatePollutionUI(); pulse(who); showDamage(who, base);
   };
 
   const applySpecialEffects = (whoPlayed, card, slotIdx) => {
-    // PANELes SOLARES => elimina SOL del rival y devuelve contaminación
     if (card.image === PANELES_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
       const opponentSlots = state[opponent].slots;
       const slotsEls = opponent === 'enemy' ? enemySlots : playerSlots;
-
-      let restored = 0;
-      let removedCount = 0;
+      let restored = 0, removedCount = 0;
 
       opponentSlots.forEach((c, i) => {
         if (c && c.image === SOL_IMG) {
-          restored += c.value;
-          removedCount++;
-          opponentSlots[i] = null;
-
+          restored += c.value; removedCount++; opponentSlots[i] = null;
           const slotEl = slotsEls[i];
-          if (slotEl){
-            slotEl.classList.remove('sun-pop'); void slotEl.offsetWidth; slotEl.classList.add('sun-pop');
-            setTimeout(()=> slotEl.classList.remove('sun-pop'), 450);
-          }
+          if (slotEl){ slotEl.classList.remove('sun-pop'); void slotEl.offsetWidth; slotEl.classList.add('sun-pop'); setTimeout(()=> slotEl.classList.remove('sun-pop'), 450); }
         }
       });
 
@@ -469,15 +470,13 @@
         const before = state[opponent].pollution;
         state[opponent].pollution = clamp(before + restored, 0, START_POLLUTION);
         updatePollutionUI(); pulse(opponent);
-        // mostrar "+X" (usamos amount negativo para que se pinte con '+')
-        showDamage(opponent, -Math.max(0, state[opponent].pollution - before));
+        showDamage(opponent, -(state[opponent].pollution - before)); // muestra +X
         renderSlots();
         const whoTxt = opponent === 'enemy' ? 'Rival' : 'Jugador';
         createToast(`Paneles Solares elimina ${removedCount} Sol · +${restored} contaminación para ${whoTxt}`);
       }
     }
 
-    // LUCES APAGADAS => anula la siguiente carta del rival
     if (card.image === LUCES_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
       state.nullifyNext[opponent] = true;
@@ -486,51 +485,40 @@
       createToast(`LUCES APAGADAS: la siguiente carta del ${whoTxt} no tendrá efecto`);
     }
 
-    // RECICLAJE => se transforma en otra carta y la nueva aplica su efecto y sus especiales
     if (card.image === RECICLAJE_IMG) {
       const ownerSlots = state[whoPlayed].slots;
       const slotsEls = whoPlayed === 'player' ? playerSlots : enemySlots;
       const slotEl = slotsEls[slotIdx];
       markSlotMorph(slotEl);
-
       const newCard = randFromDeckExcept(RECICLAJE_IMG);
       ownerSlots[slotIdx] = newCard;
       renderSlots();
       createToast(`RECICLAJE → se transforma`);
 
-      // Previsualizar pop del daño base (si AGUA estaba activo, será doble)
+      // Aplica la carta transformada (base + especiales)
       const mult = state.doubleNext[whoPlayed] ? 2 : 1;
       const base = (newCard.value || 0) * mult;
       if (base) showDamage(whoPlayed, base);
-
-      // Aplicar efecto base (consume doubleNext si estaba activo)
       applyEffect(whoPlayed, newCard);
-
-      // Disparar también efectos especiales de la nueva carta
       applySpecialEffects(whoPlayed, newCard, slotIdx);
-
-      return; // no seguir evaluando más para la carta original
+      return;
     }
 
-    // PLANTAR => -2 por cada carta en tu propio tablero (incluida esta)
     if (card.image === PLANTAR_IMG) {
       const count = state[whoPlayed].slots.filter(Boolean).length;
       const extra = 2 * count;
       if (extra > 0) {
         state[whoPlayed].pollution = Math.max(0, state[whoPlayed].pollution - extra);
-        updatePollutionUI(); pulse(whoPlayed);
-        showDamage(whoPlayed, extra);
+        updatePollutionUI(); pulse(whoPlayed); showDamage(whoPlayed, extra);
         createToast(`PLANTAR: -${extra} adicional (${count} cartas en mesa)`);
       }
     }
 
-    // AGUA => duplica el efecto base de la PRÓXIMA carta del mismo bando
     if (card.image === AGUA_IMG) {
       state.doubleNext[whoPlayed] = true;
       createToast(`AGUA: tu próxima carta resta el doble`);
     }
 
-    // CAMBIO => intercambia con la carta del rival enfrente (mismo índice) y aplica el valor base de las recibidas
     if (card.image === CAMBIO_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
       if (typeof slotIdx === 'number') {
@@ -540,7 +528,6 @@
         const beforeMine = mySlots[slotIdx];
         const beforeOpp  = oppSlots[slotIdx];
 
-        // Intercambio
         mySlots[slotIdx]  = beforeOpp;
         oppSlots[slotIdx] = beforeMine;
 
@@ -550,62 +537,65 @@
         const oppSlotEl = (opponent    === 'enemy' ? enemySlots  : playerSlots)[slotIdx];
         markSwapSlots(mySlotEl, oppSlotEl);
 
-        // Regla aclarada: tras el intercambio, cada lado RESTA el valor base de la carta recibida
-        // (sin efectos especiales, sin nullify y sin doubleNext)
         if (mySlots[slotIdx]) {
           const v = mySlots[slotIdx].value || 0;
-          if (v) {
-            state[whoPlayed].pollution = Math.max(0, state[whoPlayed].pollution - v);
-            showDamage(whoPlayed, v);
-          }
+          if (v) { state[whoPlayed].pollution = Math.max(0, state[whoPlayed].pollution - v); showDamage(whoPlayed, v); }
         }
         if (oppSlots[slotIdx]) {
           const v = oppSlots[slotIdx].value || 0;
-          if (v) {
-            state[opponent].pollution = Math.max(0, state[opponent].pollution - v);
-            showDamage(opponent, v);
-          }
+          if (v) { state[opponent].pollution = Math.max(0, state[opponent].pollution - v); showDamage(opponent, v); }
         }
         updatePollutionUI();
         pulse(whoPlayed); pulse(opponent);
-
         createToast(`CAMBIO: intercambio en el hueco ${slotIdx+1} · aplicado el valor de las cartas recibidas`);
       }
     }
   };
 
-  // --------- Turnos ---------
+  // --------- IA / Turnos con retraso de robo ---------
+  const scheduleTurnDraw = (who) => {
+    // No robar en el PRIMER TURNO de la partida (jugador comienza sin robo)
+    if (!state.firstTurnNoDrawDone) {
+      state.firstTurnNoDrawDone = true;
+      return; // se omite la primera vez
+    }
+    setTimeout(() => {
+      draw(who, TURN_DRAW, who==='player', {animate:true});
+    }, DRAW_DELAY);
+  };
+
   const nextTurn = () => {
     state.current = state.current==='player' ? 'enemy' : 'player';
     elTurnLabel.textContent = state.current==='player' ? 'Jugador' : 'Rival';
     banner(state.current==='player' ? 'Turno del Jugador' : 'Turno del Rival');
-    draw(state.current, TURN_DRAW, state.current==='player');
-    if (state.current==='enemy') setTimeout(enemyPlays, 700);
+
+    // Programar robo con retraso (y animación)
+    scheduleTurnDraw(state.current);
+
+    // Si es turno del rival: jugar después del robo + pausa
+    if (state.current==='enemy') {
+      const totalDelay = (state.firstTurnNoDrawDone ? DRAW_DELAY : 0) + AFTER_DRAW_PAUSE;
+      setTimeout(enemyPlays, totalDelay);
+    }
   };
 
   const enemyPlays = () => {
     const h = state.enemy.hand; if (!h.length) return nextTurn();
 
-    // IA: prioriza Paneles si el jugador tiene Sol en mesa
     const idxPaneles = h.findIndex(c => c.image === PANELES_IMG);
     const playerHasSolOnBoard = state.player.slots.some(c => c && c.image === SOL_IMG);
 
     let playIndex = 0;
-    if (idxPaneles !== -1 && playerHasSolOnBoard) {
-      playIndex = idxPaneles;
-    } else {
-      // si no, juega la carta de mayor valor
-      for (let i=1;i<h.length;i++) if (h[i].value>h[playIndex].value) playIndex=i;
-    }
+    if (idxPaneles !== -1 && playerHasSolOnBoard) playIndex = idxPaneles;
+    else { for (let i=1;i<h.length;i++) if (h[i].value>h[playIndex].value) playIndex=i; }
 
     const card = h.splice(playIndex,1)[0];
-    // Hueco enemigo: libre o sustituye el de menor valor
+
     let idx = state.enemy.slots.findIndex(s=>!s);
     if (idx === -1){ let min=Infinity, at=0; state.enemy.slots.forEach((c,i)=>{if(c && c.value<min){min=c.value;at=i}}); idx=at; }
 
     state.enemy.slots[idx]=card; flashSlot(enemySlots[idx]); renderSlots();
 
-    // ¿Está anulada la próxima carta del rival (enemy)?
     if (state.nullifyNext.enemy) {
       state.nullifyNext.enemy = false;
       triggerNullifySweep('enemy');
@@ -645,38 +635,31 @@
     state.current='player'; state.timer=MATCH_TIME;
     state.nullifyNext = { player:false, enemy:false };
     state.doubleNext  = { player:false, enemy:false };
+    state.firstTurnNoDrawDone = false;
     clearInterval(state.intervalId); overlay.classList.add('hidden');
 
     updatePollutionUI(); renderSlots(); refreshHandUI();
-    draw('player', START_HAND_SIZE, true);
-    draw('enemy',  START_HAND_SIZE, false);
+    // Manos iniciales
+    for (let i=0;i<START_HAND_SIZE;i++) state.player.hand.push(randFromDeck());
+    for (let i=0;i<START_HAND_SIZE;i++) state.enemy.hand.push(randFromDeck());
+    refreshHandUI();
+
     elTimer.textContent = timeFmt(state.timer);
     state.intervalId = setInterval(tick, 1000);
     banner('Turno del Jugador');
   };
 
-  // === Portada: iniciar juego al pulsar ===
+  // === Portada y modal ===
   if (playBtn && startScreen) {
-    playBtn.addEventListener('click', () => {
-      startScreen.classList.add('hidden');
-      start();
-    });
+    playBtn.addEventListener('click', () => { startScreen.classList.add('hidden'); start(); });
   }
-
-  // === Modal "Cómo jugar" ===
-  const openHow = () => { howModal.classList.remove('hidden'); };
-  const closeHow = () => { howModal.classList.add('hidden'); };
-  if (howBtn) howBtn.addEventListener('click', openHow);
-  if (howClose) howClose.addEventListener('click', closeHow);
-  if (howOkBtn) howOkBtn.addEventListener('click', closeHow);
-  if (howModal) {
-    howModal.addEventListener('click', (e)=>{
-      if (e.target === howModal) closeHow();
-    });
-    document.addEventListener('keydown', (e)=>{
-      if (!howModal.classList.contains('hidden') && e.key === 'Escape') closeHow();
-    });
-  }
+  const openHow = () => { howModal?.classList.remove('hidden'); };
+  const closeHow = () => { howModal?.classList.add('hidden'); };
+  howBtn?.addEventListener('click', openHow);
+  howClose?.addEventListener('click', closeHow);
+  howOkBtn?.addEventListener('click', closeHow);
+  howModal?.addEventListener('click', (e)=>{ if (e.target===howModal) closeHow(); });
+  document.addEventListener('keydown', (e)=>{ if (e.key==='Escape' && !howModal?.classList.contains('hidden')) closeHow(); });
 
   // Reiniciar desde overlay → volver a portada
   restartBtn.addEventListener('click', () => {
