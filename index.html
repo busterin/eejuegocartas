@@ -2,79 +2,79 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-  <title>Duelos ECO</title>
-  <link rel="stylesheet" href="style.css" />
+  <title>Prototipo — Cartas Medioambientales</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Cartel de turno -->
+  <div id="turnBanner" class="turn-banner hidden">Turno</div>
 
-  <!-- PANTALLA DE PORTADA -->
-  <div id="startScreen" class="start-screen">
-    <div class="cover-card">
-      <img src="assets/Portada.png" alt="Portada">
-      <button id="playBtn" class="btn play-btn">JUGAR</button>
+  <!-- Barra superior -->
+  <header class="topbar">
+    <div class="side side-left">
+      <span class="name">Jugador</span>
+      <div class="pollution" id="playerBubble">
+        <span id="playerPollution">50</span>
+      </div>
     </div>
-  </div>
 
-  <!-- BARRA SUPERIOR -->
-  <div class="topbar">
-    <div class="side">
-      <span>Jugador</span>
-      <div id="playerBubble" class="pollution"><span id="playerPollution">50</span></div>
-    </div>
     <div class="timer-wrap">
       <div class="timer-label">Tiempo</div>
       <div id="timer">05:00</div>
-      <div class="rule">Gana quien llegue a 0 o tenga menos al finalizar</div>
-    </div>
-    <div class="side">
-      <span>Rival</span>
-      <div id="enemyBubble" class="pollution"><span id="enemyPollution">50</span></div>
-    </div>
-  </div>
-
-  <!-- TABLERO -->
-  <div class="board">
-    <!-- LÍNEA DEL RIVAL -->
-    <div class="lane lane-enemy">
-      <div class="slot" data-idx="0"></div>
-      <div class="slot" data-idx="1"></div>
-      <div class="slot" data-idx="2"></div>
-      <div class="slot" data-idx="3"></div>
-      <div class="slot" data-idx="4"></div>
+      <div class="rule">Gana quien llegue a 0. Si se acaba el tiempo, gana el de menor contaminación.</div>
     </div>
 
-    <!-- LÍNEA DEL JUGADOR -->
-    <div class="lane lane-player">
-      <div class="slot" data-idx="0"></div>
-      <div class="slot" data-idx="1"></div>
-      <div class="slot" data-idx="2"></div>
-      <div class="slot" data-idx="3"></div>
-      <div class="slot" data-idx="4"></div>
+    <div class="side side-right">
+      <span class="name">Rival</span>
+      <div class="pollution" id="enemyBubble">
+        <span id="enemyPollution">50</span>
+      </div>
     </div>
-  </div>
+  </header>
 
-  <!-- MANO DEL JUGADOR -->
-  <div class="hand-wrap">
-    <div class="hand-title">Tu mano</div>
-    <div id="playerHand" class="hand"></div>
-  </div>
+  <!-- Tapete -->
+  <main class="board">
+    <!-- Fila Rival -->
+    <section class="lane lane-enemy" aria-label="Zona del rival" id="enemyLane">
+      <div class="slot" data-owner="enemy" data-idx="0"></div>
+      <div class="slot" data-owner="enemy" data-idx="1"></div>
+      <div class="slot" data-owner="enemy" data-idx="2"></div>
+      <div class="slot" data-owner="enemy" data-idx="3"></div>
+      <div class="slot" data-owner="enemy" data-idx="4"></div>
+    </section>
 
-  <!-- BANNER DE TURNO -->
-  <div id="turnBanner" class="turn-banner hidden">Turno del Jugador</div>
+    <!-- Fila Jugador -->
+    <section class="lane lane-player" aria-label="Zona del jugador" id="playerLane">
+      <div class="slot" data-owner="player" data-idx="0"></div>
+      <div class="slot" data-owner="player" data-idx="1"></div>
+      <div class="slot" data-owner="player" data-idx="2"></div>
+      <div class="slot" data-owner="player" data-idx="3"></div>
+      <div class="slot" data-owner="player" data-idx="4"></div>
+    </section>
+  </main>
 
-  <!-- ZOOM DE CARTA -->
-  <div id="cardZoom" class="zoom hidden">
-    <div id="zoomCard" class="zoom-card"></div>
-  </div>
+  <!-- Mano del jugador -->
+  <footer class="hand-wrap">
+    <h2 class="hand-title">Tu mano</h2>
+    <div id="playerHand" class="hand" aria-label="Mano del jugador"></div>
+    <div class="turn-indicator">
+      Turno: <span id="turnLabel">Jugador</span>
+    </div>
+  </footer>
 
-  <!-- OVERLAY FIN DE PARTIDA -->
-  <div id="overlay" class="overlay hidden">
+  <!-- Overlay de fin de partida -->
+  <div id="overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="overlayTitle">
     <div class="overlay-card">
-      <h2 id="overlayTitle">¡Victoria!</h2>
-      <p id="overlaySubtitle">Llegaste a 0 de contaminación.</p>
-      <button id="restartBtn" class="btn">Volver a inicio</button>
+      <h2 id="overlayTitle"></h2>
+      <p id="overlaySubtitle"></p>
+      <button id="restartBtn" class="btn">Volver al inicio</button>
     </div>
+  </div>
+
+  <!-- Zoom / Vista de carta -->
+  <div id="cardZoom" class="zoom hidden" role="dialog" aria-modal="true" aria-labelledby="zoomTitle">
+    <div class="zoom-card" id="zoomCard"></div>
   </div>
 
   <script src="script.js"></script>
