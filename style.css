@@ -143,18 +143,7 @@ img{-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
   display:grid;place-items:center;color:#cfe5d4;user-select:none;overflow:hidden;
 }
 
-/* --- Origen del robo (mazo) --- */
-.draw-origin{
-  position:absolute;
-  top:calc(50% - 40px);
-  right:clamp(6px,1.6vw,12px);
-  width:56px; height:80px;
-  border-radius:10px;
-  background:linear-gradient(180deg,#0f2419,#0a1a12);
-  border:3px solid #2a6d4a;
-  box-shadow:0 6px 18px rgba(0,0,0,.45), inset 0 0 0 3px rgba(255,255,255,.06);
-  opacity:.9;
-}
+/* --- Animación de carta robada (sin mazo visible) --- */
 .draw-card{
   position:fixed; z-index:1000; pointer-events:none;
   width:var(--card-w); height:var(--card-h);
