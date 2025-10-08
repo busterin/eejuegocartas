@@ -16,15 +16,15 @@
   const CAMBIO_IMG    = "assets/Carta7.png"; // CAMBIO
 
   // --------- Mazo base: 7 cartas ---------
-  const baseDeck = [
-    { label: "Sol",               value: 2, image: SOL_IMG },
-    { label: "Paneles Solares",   value: 3, image: PANELES_IMG },
-    { label: "Luces Apagadas",    value: 0, image: LUCES_IMG },
-    { label: "Reciclaje",         value: 2, image: RECICLAJE_IMG },
-    { label: "Plantar",           value: 5, image: PLANTAR_IMG },
-    { label: "Agua",              value: 3, image: AGUA_IMG },
-    { label: "Cambio",            value: 4, image: CAMBIO_IMG },
-  ];
+const baseDeck = [
+  { label: "Sol",               value: 8, image: "assets/Carta1.png" },
+  { label: "Paneles Solares",   value: 6, image: "assets/Carta2.png" },
+  { label: "Luces Apagadas",    value: 4, image: "assets/Carta3.png" },
+  { label: "Reciclaje",         value: 0, image: "assets/Carta4.png" },
+  { label: "Plantar",           value: 0, image: "assets/Carta5.png" },
+  { label: "Agua",              value: 2, image: "assets/Carta6.png" },
+  { label: "Cambio",            value: 0, image: "assets/Carta7.png" },
+];
 
   // --------- Estado ----------
   const state = {
