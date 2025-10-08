@@ -6,22 +6,20 @@
   const MATCH_TIME = 5 * 60; // 5 minutos
   const SLOTS = 5;
 
-  // Helper de paths
-  const SOL_IMG = "assets/Carta1.png";         // SOL
-  const PANELES_IMG = "assets/Carta2.png";     // PANELES SOLARES
+  // Paths clave
+  const SOL_IMG = "assets/Carta1.png";       // SOL
+  const PANELES_IMG = "assets/Carta2.png";   // PANELES SOLARES
 
-  // --------- Mazo base con imágenes ---------
+  // --------- Mazo base: 7 cartas ---------
+  // (Los títulos no se muestran, pero dejo etiquetas internas por claridad)
   const baseDeck = [
-    { label: "Sol",               info: "", value: 2, image: SOL_IMG },
-    { label: "Paneles Solares",   info: "", value: 3, image: PANELES_IMG },
-    { label: "Energía Solar",     info: "", value: 4, image: "assets/Carta3.png" },
-    { label: "Reforestación",     info: "", value: 5, image: "assets/Carta4.png" },
-    { label: "Transporte Limpio", info: "", value: 6, image: "assets/Carta5.png" },
-    { label: "Agua Pura",         info: "", value: 3, image: "assets/Carta6.png" },
-    { label: "Protección Animal", info: "", value: 4, image: "assets/Carta7.png" },
-    { label: "Agricultura",       info: "", value: 5, image: "assets/Carta8.png" },
-    { label: "Educación",         info: "", value: 2, image: "assets/Carta9.png" },
-    { label: "Energía Eólica",    info: "", value: 6, image: "assets/Carta10.png" },
+    { label: "Sol",               value: 2, image: SOL_IMG },
+    { label: "Paneles Solares",   value: 3, image: PANELES_IMG },
+    { label: "Carta3",            value: 4, image: "assets/Carta3.png" },
+    { label: "Carta4",            value: 5, image: "assets/Carta4.png" },
+    { label: "Carta5",            value: 6, image: "assets/Carta5.png" },
+    { label: "Carta6",            value: 3, image: "assets/Carta6.png" },
+    { label: "Carta7",            value: 4, image: "assets/Carta7.png" },
   ];
 
   // --------- Estado ----------
@@ -57,13 +55,19 @@
   const timeFmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
 
-  const randFromDeck = () => {
-    const c = structuredClone(baseDeck[randInt(0, baseDeck.length-1)]);
-    c.id = `c-${Math.random().toString(36).slice(2,8)}`;
-    return c;
+  // Robar una carta del mazo (posibilidad de filtrar para el rival)
+  const randFromDeck = (owner=null) => {
+    let pool = baseDeck;
+    if (owner === 'enemy') {
+      // 🚫 El rival no puede robar SOL
+      pool = baseDeck.filter(c => c.image !== SOL_IMG);
+    }
+    const proto = structuredClone(pool[randInt(0, pool.length-1)]);
+    proto.id = `c-${Math.random().toString(36).slice(2,8)}`;
+    return proto;
   };
 
-  // --------- Toaster ----------
+  // --------- Toaster (para mensajes de efecto) ----------
   let toastContainer;
   const ensureToastContainer = () => {
     if (toastContainer) return toastContainer;
@@ -88,7 +92,7 @@
 
   // --------- Robar cartas ---------
   const draw = (owner, n=1, preview=false) => {
-    for (let i=0;i<n;i++) state[owner].hand.push(randFromDeck());
+    for (let i=0;i<n;i++) state[owner].hand.push(randFromDeck(owner));
     if (owner==='player' && preview && state.player.hand.length){
       showCardZoom(state.player.hand[state.player.hand.length-1]);
       setTimeout(hideCardZoom, 1100);
@@ -134,7 +138,7 @@
     return el;
   };
 
-  // ===== DRAG & TAP-TO-ZOOM (robusto y cross-desktop/móvil) =====
+  // ===== DRAG & TAP-TO-ZOOM (cross desktop/móvil) =====
   const DRAG_THRESHOLD = 12; // px
   let drag = {
     active:false, moved:false,
@@ -147,19 +151,15 @@
   const onPointerDownCard = (cardObj, cardEl) => (e) => {
     if (state.current !== 'player') return;
 
-    e.preventDefault(); // evita selección/gestos
-    // NO usamos pointer capture (algunos navegadores cambian el destino de pointerup)
+    e.preventDefault();
     drag.active = true; drag.moved = false;
     drag.id = cardObj.id; drag.card = cardObj; drag.originEl = cardEl;
     drag.startX = e.clientX; drag.startY = e.clientY;
     drag.startRect = cardEl.getBoundingClientRect();
 
-    // Escuchas redundantes para asegurar pointerup en desktop:
     document.addEventListener('pointermove', onPointerMove, { passive:false });
-    // pointerup en documento (capture) y en la propia carta:
     document.addEventListener('pointerup', onPointerUp, { once:true, capture:true });
     cardEl.addEventListener('pointerup', onPointerUp, { once:true });
-
     document.addEventListener('pointercancel', onPointerCancel, { once:true, capture:true });
   };
 
@@ -171,9 +171,7 @@
     if (!drag.moved) {
       if (Math.hypot(dx, dy) <= DRAG_THRESHOLD) return;
 
-      // Se convierte en arrastre: crear ghost y ocultar original
       drag.moved = true;
-
       const g = drag.originEl.cloneNode(true);
       g.classList.add('fly');
       Object.assign(g.style, {
@@ -226,7 +224,7 @@
   const onPointerUp = (e) => {
     if (!drag.active) return;
 
-    // TAP sin mover ⇒ ZOOM (mano)
+    // TAP sin mover ⇒ ZOOM
     if (!drag.moved) {
       cleanupDrag();
       showCardZoom(drag.card);
@@ -295,9 +293,8 @@
     elPlayerHand.innerHTML = '';
     state.player.hand.forEach(c=>{
       const view = cardHTML(c);
-      // pointerdown: tap=zoom o drag
       view.addEventListener('pointerdown', onPointerDownCard(c, view), { passive:false });
-      // Fallback por si algún navegador emite sólo click
+      // Fallback click (por si el navegador sólo emite click)
       view.addEventListener('click', () => {
         if (justDragged) return;
         showCardZoom(c);
@@ -306,19 +303,23 @@
     });
   };
 
-  // --------- Zoom ----------
+  // --------- Zoom (sin botón cerrar; fondo para cerrar + Esc) ----------
   const showCardZoom = (card) => {
     zoomCard.innerHTML = `
       <img src="${card.image}" alt="${card.label || ''}">
-      <div class="number">-${card.value}</div>
-      <div style="position:absolute;bottom:16px;left:0;right:0;display:flex;justify-content:center;z-index:2;">
-        <button class="btn" id="zoomClose">Cerrar</button>
-      </div>`;
+      <div class="number">-${card.value}</div>`;
     cardZoom.classList.remove('hidden');
-    $('zoomClose').onclick = hideCardZoom;
+
+    // Cerrar tocando/clicando fuera de la tarjeta
     cardZoom.onclick = (e)=>{ if (e.target===cardZoom) hideCardZoom(); };
+
+    // Cerrar con ESC
+    const onEsc = (ev) => { if (ev.key === 'Escape') { hideCardZoom(); } };
+    document.addEventListener('keydown', onEsc, { once:true });
   };
-  const hideCardZoom = ()=> cardZoom.classList.add('hidden');
+  const hideCardZoom = ()=> {
+    cardZoom.classList.add('hidden');
+  };
 
   // --------- Juego: efectos básicos y especiales ---------
   const flashSlot = slot => { slot.classList.remove('flash'); void slot.offsetWidth; slot.classList.add('flash'); };
@@ -384,15 +385,25 @@
   const enemyPlays = () => {
     const h = state.enemy.hand; if (!h.length) return nextTurn();
 
-    // IA: prioriza Paneles si el jugador tiene Sol en mesa
+    // IA: prioriza Paneles si hay Sol del jugador en mesa
     const idxPaneles = h.findIndex(c => c.image === PANELES_IMG);
     const playerHasSolOnBoard = state.player.slots.some(c => c && c.image === SOL_IMG);
 
-    let playIndex = 0;
+    // 🚫 Nunca jugar SOL: si existiera por algún motivo, no se selecciona
+    const candidateIndices = h
+      .map((c, i) => ({c, i}))
+      .filter(x => x.c.image !== SOL_IMG)
+      .map(x => x.i);
+
+    let playIndex;
     if (idxPaneles !== -1 && playerHasSolOnBoard) {
       playIndex = idxPaneles;
     } else {
-      for (let i=1;i<h.length;i++) if (h[i].value>h[playIndex].value) playIndex=i;
+      // de los candidatos, elegir el de mayor valor
+      playIndex = candidateIndices[0] ?? 0;
+      for (const i of candidateIndices) {
+        if (h[i].value > h[playIndex].value) playIndex = i;
+      }
     }
 
     const card = h.splice(playIndex,1)[0];
