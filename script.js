@@ -60,8 +60,11 @@
   const zoomCard          = $('zoomCard');
   const playerSlots = Array.from(document.querySelectorAll('.lane-player .slot'));
   const enemySlots  = Array.from(document.querySelectorAll('.lane-enemy .slot'));
+
+  // Portada / fondo / modal
   const startScreen = $('startScreen');
   const playBtn     = $('playBtn');
+  const gameBg      = $('gameBg');
   const howBtn      = $('howBtn');
   const howModal    = $('howModal');
   const howClose    = $('howClose');
@@ -84,6 +87,7 @@
     return proto;
   };
 
+  // === Imagen de tablero: usar ...tablero.png sólo en la miniatura de mesa ===
   const boardThumb = (imgPath) => {
     if (typeof imgPath === 'string' && imgPath.endsWith('.png')) {
       const base = imgPath.slice(0, -4);
@@ -166,7 +170,6 @@
     let dest = { left: window.innerWidth/2, top: window.innerHeight-20 };
     if (owner === 'player') {
       const handRect = elPlayerHand.getBoundingClientRect();
-      // Caer cerca del extremo derecho de la mano para vender “orden de llegada”
       dest.left = handRect.right - (handRect.width * 0.25);
       dest.top  = handRect.top + 12;
     } else {
@@ -215,6 +218,7 @@
 
     const img = document.createElement('img');
     img.className = 'card-img';
+    // Mano/zoom usan imagen normal; tablero usa miniatura específica
     img.src = inSlot ? boardThumb(card.image) : card.image;
     img.alt = card.label || '';
 
@@ -227,13 +231,19 @@
     return el;
   };
 
-  // ===== DRAG & TAP-TO-ZOOM =====
+  // ===== DRAG & TAP-TO-ZOOM (cross desktop/móvil) =====
   const DRAG_THRESHOLD = 12; // px
-  let drag = { active:false, moved:false, id:null, card:null, originEl:null, startX:0, startY:0, startRect:null, ghost:null };
+  let drag = {
+    active:false, moved:false,
+    id:null, card:null, originEl:null,
+    startX:0, startY:0, startRect:null,
+    ghost:null
+  };
   let justDragged = false;
 
   const onPointerDownCard = (cardObj, cardEl) => (e) => {
     if (state.current !== 'player') return;
+
     e.preventDefault();
     drag.active = true; drag.moved = false;
     drag.id = cardObj.id; drag.card = cardObj; drag.originEl = cardEl;
@@ -368,7 +378,8 @@
         const c = state[owner].slots[i];
         if (c){
           const view = cardHTML(c, {inSlot:true});
-          view.addEventListener('click', ()=>showCardZoom(c)); // zoom
+          // En el tablero: click/tap = zoom (zoom usa imagen original)
+          view.addEventListener('click', ()=>showCardZoom(c));
           slotEl.appendChild(view);
         }
       });
@@ -383,7 +394,10 @@
     state.player.hand.forEach(c=>{
       const view = cardHTML(c);
       view.addEventListener('pointerdown', onPointerDownCard(c, view), { passive:false });
-      view.addEventListener('click', () => { if (!justDragged) showCardZoom(c); });
+      view.addEventListener('click', () => {
+        if (justDragged) return;
+        showCardZoom(c);
+      });
       elPlayerHand.appendChild(view);
     });
   };
@@ -394,7 +408,11 @@
       <img src="${card.image}" alt="${card.label || ''}">
       <div class="number">-${card.value}</div>`;
     cardZoom.classList.remove('hidden');
+
+    // Cerrar tocando/clicando fuera de la tarjeta
     cardZoom.onclick = (e)=>{ if (e.target===cardZoom) hideCardZoom(); };
+
+    // Cerrar con ESC
     const onEsc = (ev) => { if (ev.key === 'Escape') { hideCardZoom(); } };
     document.addEventListener('keydown', onEsc, { once:true });
   };
@@ -404,14 +422,16 @@
   const flashSlot = slot => { slot.classList.remove('flash'); void slot.offsetWidth; slot.classList.add('flash'); };
 
   const triggerSolarSweep = (owner) => {
-    const laneEl = owner === 'enemy' ? document.querySelector('.lane-enemy') : document.querySelector('.lane-player');
+    const laneEl = owner === 'enemy' ? document.querySelector('.lane-enemy')
+                                     : document.querySelector('.lane-player');
     if (!laneEl) return;
     laneEl.classList.remove('solar-sweep'); void laneEl.offsetWidth; laneEl.classList.add('solar-sweep');
     setTimeout(()=> laneEl.classList.remove('solar-sweep'), 700);
   };
 
   const triggerNullifySweep = (nullifiedOwner) => {
-    const laneEl = nullifiedOwner === 'enemy' ? document.querySelector('.lane-enemy') : document.querySelector('.lane-player');
+    const laneEl = nullifiedOwner === 'enemy' ? document.querySelector('.lane-enemy')
+                                              : document.querySelector('.lane-player');
     if (!laneEl) return;
     laneEl.classList.remove('nullify-sweep'); void laneEl.offsetWidth; laneEl.classList.add('nullify-sweep');
     setTimeout(()=> laneEl.classList.remove('nullify-sweep'), 700);
@@ -427,40 +447,55 @@
     setTimeout(()=> slotEl.classList.remove('morph'), 700);
   };
 
+  // Nuevo: animación visual de CAMBIO
   const markSwapSlots = (slotA, slotB) => {
     if (slotA) { slotA.classList.remove('swap'); void slotA.offsetWidth; slotA.classList.add('swap'); }
     if (slotB) { slotB.classList.remove('swap'); void slotB.offsetWidth; slotB.classList.add('swap'); }
+    // flip de la carta dentro del slot
     const cardA = slotA?.querySelector('.card');
     const cardB = slotB?.querySelector('.card');
     if (cardA) { cardA.classList.remove('swap-flip'); void cardA.offsetWidth; cardA.classList.add('swap-flip'); }
     if (cardB) { cardB.classList.remove('swap-flip'); void cardB.offsetWidth; cardB.classList.add('swap-flip'); }
     setTimeout(()=>{
-      slotA?.classList.remove('swap'); slotB?.classList.remove('swap');
-      cardA?.classList.remove('swap-flip'); cardB?.classList.remove('swap-flip');
+      slotA?.classList.remove('swap');
+      slotB?.classList.remove('swap');
+      cardA?.classList.remove('swap-flip');
+      cardB?.classList.remove('swap-flip');
     }, 700);
   };
 
   // --------- Juego: efectos básicos y especiales ---------
   const applyEffect = (who, card) => {
+    // Doble efecto base si está activo AGUA para este bando
     const mult = state.doubleNext[who] ? 2 : 1;
     const base = (card.value || 0) * mult;
     if (state.doubleNext[who]) state.doubleNext[who] = false; // se consume
+
     state[who].pollution = Math.max(0, state[who].pollution - base);
     updatePollutionUI(); pulse(who); showDamage(who, base);
   };
 
   const applySpecialEffects = (whoPlayed, card, slotIdx) => {
+    // PANELes SOLARES => elimina SOL del rival y devuelve contaminación
     if (card.image === PANELES_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
       const opponentSlots = state[opponent].slots;
       const slotsEls = opponent === 'enemy' ? enemySlots : playerSlots;
-      let restored = 0, removedCount = 0;
+
+      let restored = 0;
+      let removedCount = 0;
 
       opponentSlots.forEach((c, i) => {
         if (c && c.image === SOL_IMG) {
-          restored += c.value; removedCount++; opponentSlots[i] = null;
+          restored += c.value;
+          removedCount++;
+          opponentSlots[i] = null;
+
           const slotEl = slotsEls[i];
-          if (slotEl){ slotEl.classList.remove('sun-pop'); void slotEl.offsetWidth; slotEl.classList.add('sun-pop'); setTimeout(()=> slotEl.classList.remove('sun-pop'), 450); }
+          if (slotEl){
+            slotEl.classList.remove('sun-pop'); void slotEl.offsetWidth; slotEl.classList.add('sun-pop');
+            setTimeout(()=> slotEl.classList.remove('sun-pop'), 450);
+          }
         }
       });
 
@@ -476,6 +511,7 @@
       }
     }
 
+    // LUCES APAGADAS => anula la siguiente carta del rival
     if (card.image === LUCES_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
       state.nullifyNext[opponent] = true;
@@ -484,11 +520,13 @@
       createToast(`LUCES APAGADAS: la siguiente carta del ${whoTxt} no tendrá efecto`);
     }
 
+    // RECICLAJE => se transforma en otra carta (no Carta4) y aplica su efecto
     if (card.image === RECICLAJE_IMG) {
       const ownerSlots = state[whoPlayed].slots;
       const slotsEls = whoPlayed === 'player' ? playerSlots : enemySlots;
       const slotEl = slotsEls[slotIdx];
       markSlotMorph(slotEl);
+
       const newCard = randFromDeckExcept(RECICLAJE_IMG);
       ownerSlots[slotIdx] = newCard;
       renderSlots();
@@ -503,6 +541,7 @@
       return;
     }
 
+    // PLANTAR => -2 por cada carta en tu propio tablero (incluida esta)
     if (card.image === PLANTAR_IMG) {
       const count = state[whoPlayed].slots.filter(Boolean).length;
       const extra = 2 * count;
@@ -513,11 +552,14 @@
       }
     }
 
+    // AGUA => duplica el efecto base de la PRÓXIMA carta del mismo bando
     if (card.image === AGUA_IMG) {
       state.doubleNext[whoPlayed] = true;
       createToast(`AGUA: tu próxima carta resta el doble`);
     }
 
+    // CAMBIO => intercambia con la carta del rival enfrente (mismo índice)
+    // y al finalizar, se resta el valor de la carta intercambiada a cada bando.
     if (card.image === CAMBIO_IMG) {
       const opponent = whoPlayed === 'player' ? 'enemy' : 'player';
       if (typeof slotIdx === 'number') {
@@ -536,6 +578,7 @@
         const oppSlotEl = (opponent    === 'enemy' ? enemySlots  : playerSlots)[slotIdx];
         markSwapSlots(mySlotEl, oppSlotEl);
 
+        // Aplica el valor de la carta recibida por cada lado
         if (mySlots[slotIdx]) {
           const v = mySlots[slotIdx].value || 0;
           if (v) { state[whoPlayed].pollution = Math.max(0, state[whoPlayed].pollution - v); showDamage(whoPlayed, v); }
@@ -544,6 +587,7 @@
           const v = oppSlots[slotIdx].value || 0;
           if (v) { state[opponent].pollution = Math.max(0, state[opponent].pollution - v); showDamage(opponent, v); }
         }
+
         updatePollutionUI();
         pulse(whoPlayed); pulse(opponent);
         createToast(`CAMBIO: intercambio en el hueco ${slotIdx+1} · aplicado el valor de las cartas recibidas`);
@@ -581,20 +625,26 @@
   const enemyPlays = () => {
     const h = state.enemy.hand; if (!h.length) return nextTurn();
 
+    // IA: prioriza Paneles si el jugador tiene Sol en mesa
     const idxPaneles = h.findIndex(c => c.image === PANELES_IMG);
     const playerHasSolOnBoard = state.player.slots.some(c => c && c.image === SOL_IMG);
 
     let playIndex = 0;
-    if (idxPaneles !== -1 && playerHasSolOnBoard) playIndex = idxPaneles;
-    else { for (let i=1;i<h.length;i++) if (h[i].value>h[playIndex].value) playIndex=i; }
+    if (idxPaneles !== -1 && playerHasSolOnBoard) {
+      playIndex = idxPaneles;
+    } else {
+      // si no, juega la carta de mayor valor (puede ser SOL/PLANTAR/AGUA/CAMBIO/etc.)
+      for (let i=1;i<h.length;i++) if (h[i].value>h[playIndex].value) playIndex=i;
+    }
 
     const card = h.splice(playIndex,1)[0];
-
+    // Hueco enemigo: libre o sustituye el de menor valor
     let idx = state.enemy.slots.findIndex(s=>!s);
     if (idx === -1){ let min=Infinity, at=0; state.enemy.slots.forEach((c,i)=>{if(c && c.value<min){min=c.value;at=i}}); idx=at; }
 
     state.enemy.slots[idx]=card; flashSlot(enemySlots[idx]); renderSlots();
 
+    // ¿Está anulada la próxima carta del rival (enemy)?
     if (state.nullifyNext.enemy) {
       state.nullifyNext.enemy = false;
       triggerNullifySweep('enemy');
@@ -638,7 +688,7 @@
     clearInterval(state.intervalId); overlay.classList.add('hidden');
 
     updatePollutionUI(); renderSlots(); refreshHandUI();
-    // Manos iniciales
+    // Manos iniciales (sin animación)
     for (let i=0;i<START_HAND_SIZE;i++) state.player.hand.push(randFromDeck());
     for (let i=0;i<START_HAND_SIZE;i++) state.enemy.hand.push(randFromDeck());
     refreshHandUI();
@@ -650,7 +700,11 @@
 
   // === Portada y modal ===
   if (playBtn && startScreen) {
-    playBtn.addEventListener('click', () => { startScreen.classList.add('hidden'); start(); });
+    playBtn.addEventListener('click', () => { 
+      startScreen.classList.add('hidden'); 
+      gameBg.classList.remove('hidden');  // Mostrar fondo al empezar
+      start(); 
+    });
   }
   const openHow = () => { howModal?.classList.remove('hidden'); };
   const closeHow = () => { howModal?.classList.add('hidden'); };
@@ -665,7 +719,8 @@
     cardZoom.classList.add('hidden');
     overlay.classList.add('hidden');
     if (state.intervalId) { clearInterval(state.intervalId); state.intervalId = null; }
-    startScreen.classList.remove('hidden');
+    gameBg.classList.add('hidden');          // Ocultar fondo al volver a portada
+    startScreen.classList.remove('hidden');  // Mostrar portada
   });
 
   // Nota: NO llamamos a start() automáticamente: se inicia desde la portada.
