@@ -724,3 +724,8 @@ howBtn.addEventListener('click', () => {
 howModal.addEventListener('click', (e) => {
   if (e.target === howModal) howModal.classList.add('hidden');
 });
+/* ===== Evitar que el modal "Cómo jugar" se muestre al iniciar el juego ===== */
+window.addEventListener('load', () => {
+  const howModal = document.getElementById('howModal');
+  if (howModal) howModal.classList.add('hidden');
+});
