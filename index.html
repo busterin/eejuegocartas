@@ -17,6 +17,9 @@
     </div>
   </div>
 
+  <!-- ===== FONDO DEL JUEGO (solo en partida) ===== -->
+  <div id="gameBg" class="game-bg hidden" aria-hidden="true"></div>
+
   <!-- ===== MODAL: CÓMO JUGAR ===== -->
   <div id="howModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="howTitle">
     <div class="modal-card">
@@ -31,7 +34,7 @@
           <li>Empiezas con <strong>5 cartas</strong> y al inicio de cada turno robas <strong>1</strong> (excepto el <strong>primer turno</strong> de la partida).</li>
           <li>En tu turno, <strong>arrastra</strong> una carta desde la mano a uno de tus <strong>5 huecos</strong> del tablero (si un hueco está ocupado, <strong>la nueva carta sustituye</strong> a la anterior).</li>
           <li>El número de la carta se resta de tu propia contaminación (por ejemplo, una carta de valor 8 te resta 8 puntos).</li>
-          <li>Pulsa cualquier carta (en mano o tablero) para <strong>ampliarla</strong> y ver sus detalles.</li>
+          <li>Pulsa cualquier carta (en mano o tablero) para <strong>ampliarla</strong> y verla a tamaño grande.</li>
         </ul>
 
         <p>Cada carta representa una acción o recurso ecológico con <strong>efectos distintos</strong> que pueden influir en tu contaminación o en la del rival. ¡Descubre sus combinaciones!</p>
@@ -77,7 +80,7 @@
   <!-- Tapete -->
   <main class="board">
     <!-- Fila Rival -->
-    <section class="lane lane-enemy" id="enemyLane">
+    <section class="lane lane-enemy" aria-label="Zona del rival" id="enemyLane">
       <div class="slot" data-owner="enemy" data-idx="0"></div>
       <div class="slot" data-owner="enemy" data-idx="1"></div>
       <div class="slot" data-owner="enemy" data-idx="2"></div>
@@ -86,7 +89,7 @@
     </section>
 
     <!-- Fila Jugador -->
-    <section class="lane lane-player" id="playerLane">
+    <section class="lane lane-player" aria-label="Zona del jugador" id="playerLane">
       <div class="slot" data-owner="player" data-idx="0"></div>
       <div class="slot" data-owner="player" data-idx="1"></div>
       <div class="slot" data-owner="player" data-idx="2"></div>
@@ -95,15 +98,17 @@
     </section>
   </main>
 
-  <!-- Mano -->
+  <!-- Mano del jugador -->
   <footer class="hand-wrap">
     <h2 class="hand-title">Tu mano</h2>
-    <div id="playerHand" class="hand"></div>
-    <div class="turn-indicator">Turno: <span id="turnLabel">Jugador</span></div>
+    <div id="playerHand" class="hand" aria-label="Mano del jugador"></div>
+    <div class="turn-indicator">
+      Turno: <span id="turnLabel">Jugador</span>
+    </div>
   </footer>
 
-  <!-- Overlay fin partida -->
-  <div id="overlay" class="overlay hidden" role="dialog">
+  <!-- Overlay de fin de partida -->
+  <div id="overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="overlayTitle">
     <div class="overlay-card">
       <h2 id="overlayTitle"></h2>
       <p id="overlaySubtitle"></p>
@@ -111,8 +116,8 @@
     </div>
   </div>
 
-  <!-- Zoom carta -->
-  <div id="cardZoom" class="zoom hidden">
+  <!-- Zoom / Vista de carta -->
+  <div id="cardZoom" class="zoom hidden" role="dialog" aria-modal="true" aria-labelledby="zoomTitle">
     <div class="zoom-card" id="zoomCard"></div>
   </div>
 
