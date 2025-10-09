@@ -466,3 +466,21 @@ img{-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
   background:rgba(0,0,0,.35); padding:4px 8px; border-radius:8px;
   color:#fff;
 }
+/* ===== Ajustes de color solicitados ===== */
+
+/* 1) Cronómetro y texto inferior en negro */
+.timer-wrap,
+.timer-label,
+#timer,
+.rule {
+  color: #000 !important;
+  text-shadow: none !important;
+}
+
+/* 2) "Textos emergentes" (toasts): mantener el color de letra,
+      pero poner el fondo como el del indicador de turno */
+.toast {
+  background: rgba(0, 0, 0, .55) !important;            /* igual que turn-banner */
+  border: 1px solid rgba(255, 255, 255, .15) !important;/* igual que turn-banner */
+  /* mantenemos color de texto actual (blanco) */
+}
