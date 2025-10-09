@@ -735,3 +735,65 @@
     howModal?.classList.add('hidden');
   });
 })();
+/* ===== Ventana centrada del modal "Cómo jugar" ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal-overlay.hidden {
+  display: none;
+}
+
+/* Tarjeta centrada */
+.modal-card {
+  position: relative;
+  background: #f2f2f2;          /* fondo claro como en portada */
+  color: #000;                  /* texto oscuro */
+  border-radius: 16px;
+  padding: 24px;
+  width: min(90vw, 420px);
+  box-shadow: 0 6px 24px rgba(0,0,0,.4);
+  text-align: left;
+}
+
+/* Botón cerrar */
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  background: transparent;
+  border: none;
+  color: #000;
+  font-size: 1.5rem;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* Botón inferior */
+.modal-actions {
+  text-align: center;
+  margin-top: 18px;
+}
+.modal-actions .btn {
+  background: #6D32FF;   /* el mismo morado de la portada */
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px 18px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+/* Ajustes internos */
+.modal-body {
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+.modal-body ul {
+  padding-left: 20px;
+}
