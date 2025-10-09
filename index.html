@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <title>Cartas Medioambientales</title>
+  <title>Prototipo — Cartas Medioambientales</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <link rel="stylesheet" href="style.css">
 </head>
@@ -16,32 +16,41 @@
     </div>
   </div>
 
-  <!-- ===== FONDO DEL JUEGO ===== -->
+  <!-- ===== FONDO DEL JUEGO (solo visible en partida) ===== -->
   <div id="gameBg" class="game-bg hidden" aria-hidden="true"></div>
 
   <!-- ===== MODAL: CÓMO JUGAR ===== -->
-  <div id="howModal" class="modal-overlay hidden">
+  <div id="howModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="howTitle">
     <div class="modal-card">
-      <button class="modal-close" id="howClose">×</button>
-      <h2>Cómo jugar</h2>
+      <button class="modal-close" id="howClose" aria-label="Cerrar">×</button>
+      <h2 id="howTitle">Cómo jugar</h2>
       <div class="modal-body">
-        <p><strong>Objetivo:</strong> reduce tu contaminación a 0 antes que el rival.  
-          Si se acaba el tiempo, gana quien tenga menos contaminación.</p>
+        <p><strong>Objetivo:</strong> reduce tu nivel de contaminación a <strong>0</strong> antes que tu rival.
+          Si se acaban los <strong>5:00</strong>, gana quien tenga <strong>menos</strong> contaminación.</p>
         <ul>
-          <li>Empiezas con 50 puntos de contaminación.</li>
-          <li>Robas una carta al inicio de cada turno (excepto el primero).</li>
-          <li>Arrastra una carta a tu tablero para jugarla.</li>
-          <li>Cada carta tiene un efecto distinto que puede alterar la contaminación propia o rival.</li>
+          <li>Empiezas con <strong>50</strong> puntos de contaminación.</li>
+          <li>Empiezas con <strong>5 cartas</strong>. Se roba <strong>1 carta al inicio de cada turno</strong> (salvo el <strong>primer turno</strong> de la partida).</li>
+          <li>Arrastra una carta desde tu mano a uno de tus <strong>5 huecos</strong>. Si el hueco está ocupado, la carta nueva <strong>sustituye</strong> a la anterior.</li>
+          <li>Pulsa una carta (mano o tablero) para verla en <strong>zoom</strong>.</li>
         </ul>
-        <p>Descubre combinaciones y efectos para ganar.</p>
+        <p>Las cartas tienen <strong>efectos distintos</strong> que pueden afectar a tu contaminación o a la del rival.</p>
+        <h3>Final de partida</h3>
+        <ul>
+          <li>Ganas inmediatamente si llegas a <strong>0</strong>.</li>
+          <li>Si llega a <strong>0:00</strong>, gana quien tenga menos; empate si están iguales.</li>
+        </ul>
       </div>
       <div class="modal-actions">
-        <button id="howOkBtn" class="btn">Entendido</button>
+        <button class="btn" id="howOkBtn">Entendido</button>
       </div>
     </div>
   </div>
 
+  <!-- Cartel de turno -->
+  <div id="turnBanner" class="turn-banner hidden">Turno</div>
+
   <!-- ===== JUEGO ===== -->
+  <!-- Barra superior -->
   <header class="topbar">
     <div class="side side-left">
       <span class="name">Jugador</span>
@@ -49,11 +58,13 @@
         <span id="playerPollution">50</span>
       </div>
     </div>
+
     <div class="timer-wrap">
       <div class="timer-label">Tiempo</div>
       <div id="timer">05:00</div>
-      <div class="rule">Gana quien llegue a 0 o quien tenga menos contaminación al acabar.</div>
+      <div class="rule">Gana quien llegue a 0. Si se acaba el tiempo, gana el de menor contaminación.</div>
     </div>
+
     <div class="side side-right">
       <span class="name">Rival</span>
       <div class="pollution" id="enemyBubble">
@@ -62,8 +73,10 @@
     </div>
   </header>
 
+  <!-- Tapete -->
   <main class="board">
-    <section class="lane lane-enemy" id="enemyLane">
+    <!-- Fila Rival -->
+    <section class="lane lane-enemy" aria-label="Zona del rival" id="enemyLane">
       <div class="slot" data-owner="enemy" data-idx="0"></div>
       <div class="slot" data-owner="enemy" data-idx="1"></div>
       <div class="slot" data-owner="enemy" data-idx="2"></div>
@@ -71,7 +84,8 @@
       <div class="slot" data-owner="enemy" data-idx="4"></div>
     </section>
 
-    <section class="lane lane-player" id="playerLane">
+    <!-- Fila Jugador -->
+    <section class="lane lane-player" aria-label="Zona del jugador" id="playerLane">
       <div class="slot" data-owner="player" data-idx="0"></div>
       <div class="slot" data-owner="player" data-idx="1"></div>
       <div class="slot" data-owner="player" data-idx="2"></div>
@@ -80,13 +94,17 @@
     </section>
   </main>
 
+  <!-- Mano del jugador -->
   <footer class="hand-wrap">
     <h2 class="hand-title">Tu mano</h2>
-    <div id="playerHand" class="hand"></div>
-    <div class="turn-indicator">Turno: <span id="turnLabel">Jugador</span></div>
+    <div id="playerHand" class="hand" aria-label="Mano del jugador"></div>
+    <div class="turn-indicator">
+      Turno: <span id="turnLabel">Jugador</span>
+    </div>
   </footer>
 
-  <div id="overlay" class="overlay hidden">
+  <!-- Overlay de fin de partida -->
+  <div id="overlay" class="overlay hidden" role="dialog" aria-modal="true" aria-labelledby="overlayTitle">
     <div class="overlay-card">
       <h2 id="overlayTitle"></h2>
       <p id="overlaySubtitle"></p>
@@ -94,7 +112,8 @@
     </div>
   </div>
 
-  <div id="cardZoom" class="zoom hidden">
+  <!-- Zoom / Vista de carta -->
+  <div id="cardZoom" class="zoom hidden" role="dialog" aria-modal="true" aria-labelledby="zoomTitle">
     <div class="zoom-card" id="zoomCard"></div>
   </div>
 
