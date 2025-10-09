@@ -484,3 +484,15 @@ img{-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
   border: 1px solid rgba(255, 255, 255, .15) !important;/* igual que turn-banner */
   /* mantenemos color de texto actual (blanco) */
 }
+/* ===== Quitar el tapete del tablero ===== */
+.board {
+  background: none !important;   /* elimina el color verde/fieltro */
+  border: none !important;       /* quita el borde */
+  box-shadow: none !important;   /* sin sombra exterior */
+  padding: 0 !important;         /* ajusta para no dejar huecos */
+}
+
+/* Opcional: reduce el margen para que quede más integrado */
+.lane {
+  padding: 0 !important;
+}
