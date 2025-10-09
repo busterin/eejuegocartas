@@ -506,3 +506,12 @@ img{-webkit-user-drag:none;user-select:none;-webkit-user-select:none}
 .lane {
   padding: 0 !important;
 }
+/* === Portada: morado exacto #6D32FF === */
+.start-screen{
+  background-color: #6D32FF !important;
+}
+
+/* Por si la imagen no ocupa toda su caja, que el contorno también sea morado */
+.start-image{
+  background-color: #6D32FF;
+}
