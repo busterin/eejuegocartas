@@ -6,7 +6,7 @@
   const MATCH_TIME = 5 * 60; // 5 minutos
   const SLOTS = 5;
 
-  // Tiempos
+  // Tiempos de turno / robo
   const DRAW_DELAY = 1200;      // espera antes de robar al empezar cada turno
   const AFTER_DRAW_PAUSE = 700; // pausa tras animar robo antes de que el rival juegue
 
@@ -37,9 +37,9 @@
     current: 'player',
     timer: MATCH_TIME,
     intervalId: null,
-    nullifyNext: { player: false, enemy: false }, // Luces Apagadas
-    doubleNext:  { player: false, enemy: false }, // Agua
-    firstTurnNoDrawDone: false // para no robar en el primer turno de la partida
+    nullifyNext: { player: false, enemy: false }, // Luces Apagadas anula próxima
+    doubleNext:  { player: false, enemy: false }, // Agua duplica próxima
+    firstTurnNoDrawDone: false // no robar en el primer turno de la partida
   };
 
   // --------- DOM ----------
@@ -61,14 +61,16 @@
   const playerSlots = Array.from(document.querySelectorAll('.lane-player .slot'));
   const enemySlots  = Array.from(document.querySelectorAll('.lane-enemy .slot'));
 
-  // Portada / fondo / modal
+  // Portada / fondo
   const startScreen = $('startScreen');
   const playBtn     = $('playBtn');
   const gameBg      = $('gameBg');
-  const howBtn      = $('howBtn');
-  const howModal    = $('howModal');
-  const howClose    = $('howClose');
-  const howOkBtn    = $('howOkBtn');
+
+  // Modal “Cómo jugar”
+  const howBtn    = $('howBtn');
+  const howModal  = $('howModal');
+  const howClose  = $('howClose');
+  const howOkBtn  = $('howOkBtn');
 
   // --------- Utilidades ----------
   const randInt = (a,b)=>Math.floor(Math.random()*(b-a+1))+a;
@@ -119,7 +121,7 @@
     }, 2200);
   };
 
-  // --------- Pop de daño visual ----------
+  // --------- Pop de daño visual (sobre burbujas) ----------
   const showDamage = (who, amount) => {
     if (!amount) return;
     const bubble = who === 'player' ? elPlayerBubble : elEnemyBubble;
@@ -222,7 +224,7 @@
     return el;
   };
 
-  // ===== DRAG & TAP-TO-ZOOM (cross desktop/móvil) =====
+  // ===== DRAG & TAP-TO-ZOOM =====
   const DRAG_THRESHOLD = 12; // px
   let drag = {
     active:false, moved:false,
@@ -369,6 +371,7 @@
         const c = state[owner].slots[i];
         if (c){
           const view = cardHTML(c, {inSlot:true});
+          // En el tablero: click/tap = zoom (zoom usa imagen original)
           view.addEventListener('click', ()=>showCardZoom(c));
           slotEl.appendChild(view);
         }
@@ -399,7 +402,10 @@
       <div class="number">-${card.value}</div>`;
     cardZoom.classList.remove('hidden');
 
+    // Cerrar tocando/clicando fuera de la tarjeta
     cardZoom.onclick = (e)=>{ if (e.target===cardZoom) hideCardZoom(); };
+
+    // Cerrar con ESC
     const onEsc = (ev) => { if (ev.key === 'Escape') { hideCardZoom(); } };
     document.addEventListener('keydown', onEsc, { once:true });
   };
@@ -438,6 +444,7 @@
   const markSwapSlots = (slotA, slotB) => {
     if (slotA) { slotA.classList.remove('swap'); void slotA.offsetWidth; slotA.classList.add('swap'); }
     if (slotB) { slotB.classList.remove('swap'); void slotB.offsetWidth; slotB.classList.add('swap'); }
+    // flip de la carta dentro del slot
     const cardA = slotA?.querySelector('.card');
     const cardB = slotB?.querySelector('.card');
     if (cardA) { cardA.classList.remove('swap-flip'); void cardA.offsetWidth; cardA.classList.add('swap-flip'); }
@@ -454,7 +461,7 @@
   const applyEffect = (who, card) => {
     const mult = state.doubleNext[who] ? 2 : 1;
     const base = (card.value || 0) * mult;
-    if (state.doubleNext[who]) state.doubleNext[who] = false;
+    if (state.doubleNext[who]) state.doubleNext[who] = false; // se consume
 
     state[who].pollution = Math.max(0, state[who].pollution - base);
     updatePollutionUI(); pulse(who); showDamage(who, base);
@@ -523,7 +530,7 @@
       if (base) showDamage(whoPlayed, base);
       applyEffect(whoPlayed, newCard);
       applySpecialEffects(whoPlayed, newCard, slotIdx);
-      return;
+      return; // ya aplicamos lo necesario
     }
 
     // PLANTAR => -2 por cada carta en tu propio tablero (incluida esta)
@@ -582,7 +589,7 @@
   // --------- IA / Turnos con retraso de robo ---------
   const scheduleTurnDraw = (who) => {
     if (!state.firstTurnNoDrawDone) {
-      state.firstTurnNoDrawDone = true;
+      state.firstTurnNoDrawDone = true; // primer turno no roba
       return;
     }
     setTimeout(() => {
@@ -606,6 +613,7 @@
   const enemyPlays = () => {
     const h = state.enemy.hand; if (!h.length) return nextTurn();
 
+    // IA sencilla: prioriza Paneles si hay Sol en mesa del jugador; si no, mayor valor
     const idxPaneles = h.findIndex(c => c.image === PANELES_IMG);
     const playerHasSolOnBoard = state.player.slots.some(c => c && c.image === SOL_IMG);
 
@@ -617,6 +625,7 @@
     }
 
     const card = h.splice(playIndex,1)[0];
+    // Hueco enemigo: libre o sustituye el de menor valor
     let idx = state.enemy.slots.findIndex(s=>!s);
     if (idx === -1){ let min=Infinity, at=0; state.enemy.slots.forEach((c,i)=>{if(c && c.value<min){min=c.value;at=i}}); idx=at; }
 
@@ -666,6 +675,7 @@
 
     updatePollutionUI(); renderSlots(); refreshHandUI();
 
+    // Manos iniciales
     for (let i=0;i<START_HAND_SIZE;i++) state.player.hand.push(randFromDeck());
     for (let i=0;i<START_HAND_SIZE;i++) state.enemy.hand.push(randFromDeck());
     refreshHandUI();
@@ -675,21 +685,16 @@
     banner('Turno del Jugador');
   };
 
-  // === Portada y modal ===
+  // === Portada ===
   if (playBtn && startScreen) {
     playBtn.addEventListener('click', () => {
+      // Asegura que el modal no esté visible al empezar
+      howModal?.classList.add('hidden');
       startScreen.classList.add('hidden');
       gameBg.classList.remove('hidden');  // Mostrar fondo al empezar
       start();
     });
   }
-  const openHow = () => { howModal?.classList.remove('hidden'); };
-  const closeHow = () => { howModal?.classList.add('hidden'); };
-  howBtn?.addEventListener('click', openHow);
-  howClose?.addEventListener('click', closeHow);
-  howOkBtn?.addEventListener('click', closeHow);
-  howModal?.addEventListener('click', (e)=>{ if (e.target===howModal) closeHow(); });
-  document.addEventListener('keydown', (e)=>{ if (e.key==='Escape' && !howModal?.classList.contains('hidden')) closeHow(); });
 
   // Reiniciar desde overlay → volver a portada (no autostart)
   restartBtn.addEventListener('click', () => {
@@ -700,32 +705,33 @@
     startScreen.classList.remove('hidden');
   });
 
-  // ¡Importante! No llamar a start() automáticamente: se arranca al pulsar JUGAR.
-})();
-/* ======== BOTÓN "CÓMO JUGAR" ======== */
-const howBtn = document.getElementById('howBtn');
-const howModal = document.getElementById('howModal');
-const howClose = document.getElementById('howClose');
-const howOkBtn = document.getElementById('howOkBtn');
+  // ======== BOTÓN "CÓMO JUGAR" (modal solo en portada) ========
+  // Asegurar que el modal está oculto por defecto
+  howModal?.classList.add('hidden');
 
-// Abrir el modal
-howBtn.addEventListener('click', () => {
-  howModal.classList.remove('hidden');
-});
-
-// Cerrar el modal con botón “×” o “Entendido”
-[howClose, howOkBtn].forEach(btn => {
-  if (btn) btn.addEventListener('click', () => {
-    howModal.classList.add('hidden');
+  // Abrir el modal sobre la portada
+  howBtn?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // Mostrar el modal y asegurarlo por encima de la portada
+    howModal.classList.remove('hidden');
+    howModal.style.zIndex = '100';
+    startScreen.style.zIndex = '60';
   });
-});
 
-// También cerrar al pulsar fuera de la tarjeta
-howModal.addEventListener('click', (e) => {
-  if (e.target === howModal) howModal.classList.add('hidden');
-});
-/* ===== Evitar que el modal "Cómo jugar" se muestre al iniciar el juego ===== */
-window.addEventListener('load', () => {
-  const howModal = document.getElementById('howModal');
-  if (howModal) howModal.classList.add('hidden');
-});
+  // Cerrar el modal con botón “×” o “Entendido”
+  [howClose, howOkBtn].forEach(btn => {
+    if (btn) btn.addEventListener('click', () => {
+      howModal.classList.add('hidden');
+    });
+  });
+
+  // También cerrar al pulsar fuera de la tarjeta
+  howModal?.addEventListener('click', (e) => {
+    if (e.target === howModal) howModal.classList.add('hidden');
+  });
+
+  // Evitar que el modal aparezca por cualquier motivo al cargar
+  window.addEventListener('load', () => {
+    howModal?.classList.add('hidden');
+  });
+})();
