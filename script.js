@@ -702,3 +702,25 @@
 
   // ¡Importante! No llamar a start() automáticamente: se arranca al pulsar JUGAR.
 })();
+/* ======== BOTÓN "CÓMO JUGAR" ======== */
+const howBtn = document.getElementById('howBtn');
+const howModal = document.getElementById('howModal');
+const howClose = document.getElementById('howClose');
+const howOkBtn = document.getElementById('howOkBtn');
+
+// Abrir el modal
+howBtn.addEventListener('click', () => {
+  howModal.classList.remove('hidden');
+});
+
+// Cerrar el modal con botón “×” o “Entendido”
+[howClose, howOkBtn].forEach(btn => {
+  if (btn) btn.addEventListener('click', () => {
+    howModal.classList.add('hidden');
+  });
+});
+
+// También cerrar al pulsar fuera de la tarjeta
+howModal.addEventListener('click', (e) => {
+  if (e.target === howModal) howModal.classList.add('hidden');
+});
